@@ -1,0 +1,70 @@
+[package]
+name = "coding-assistant"
+version = "0.1.0"
+description = "A Freya-based coding assistant GUI that turns natural-language chat into runnable code in an editor and terminal."
+license = "MIT"
+publish = false
+edition = "2024"
+
+# Optimized release builds for distribution.
+[profile.release]
+# Full link-time optimization across the whole program.
+lto = true
+# Single codegen unit maximizes optimization opportunities.
+codegen-units = 1
+# Strip debug symbols from the binary to reduce size.
+strip = true
+# Optimize for speed.
+opt-level = 3
+# Panics abort instead of unwinding, producing a smaller binary.
+panic = "abort"
+
+[workspace]
+# Single-crate workspace root. This makes the project a proper Cargo workspace
+# and enables reproducible builds via the committed Cargo.lock.
+members = ["."]
+resolver = "2"
+
+# macOS .app bundle configuration (used by `cargo bundle`).
+[package.metadata.bundle]
+name = "Coding Assistant"
+identifier = "com.example.coding-assistant"
+icon = ["assets/icon.icns"]
+category = "public.app-category.developer-tools"
+short_description = "A coding assistant that turns chat into runnable code."
+
+# Linux .deb package configuration (used by `cargo deb`).
+[package.metadata.deb]
+maintainer = "Coding Assistant Developers <dev@example.com>"
+copyright = "2026 Coding Assistant Developers"
+license-file = ["LICENSE"]
+section = "utility"
+priority = "optional"
+assets = [
+  ["target/release/coding-assistant", "usr/bin/", "755"],
+]
+
+[dependencies]
+freya = { version = "0.5.0-rc.3", features = ["markdown", "terminal", "remote-asset", "code-editor"] }
+rig-core = "0.32.0"
+tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "time", "macros"] }
+futures-util = "0.3.31"
+open = "5.4.1"
+bytes = "1.10.1"
+freya-engine = "0.5.0-rc.3"
+ropey = "1.6.1"
+tree-sitter-rust = "0.24"
+tree-sitter-python = "0.25.0"
+tree-sitter-c = "0.24.2"
+tree-sitter-cpp = "0.23.4"
+tree-sitter-java = "0.23.5"
+tree-sitter-go = "0.25.0"
+tree-sitter-typescript = "0.23.2"
+tree-sitter-javascript = "0.25.0"
+tree-sitter-html = "0.23.2"
+tree-sitter-css = "0.25.0"
+rio-vt = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+thiserror = "2.0.17"

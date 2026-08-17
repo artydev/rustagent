@@ -1,0 +1,90 @@
+name: Release
+
+# Builds and packages the application for Windows, macOS, and Linux.
+# Triggered manually (workflow_dispatch) or when a tag like v0.1.0 is pushed.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ------------------------------------------------------------------
+  # Windows: build the release binary and create an MSI installer.
+  # ------------------------------------------------------------------
+  windows:
+    name: Windows (MSI)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binary
+        run: cargo build --release
+      - name: Install cargo-wix
+        run: cargo install cargo-wix
+      - name: Generate WiX manifest
+        run: cargo wix init
+      - name: Build MSI installer
+        run: cargo wix build
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coding-assistant-windows-msi
+          path: target/wix/*.msi
+
+  # ------------------------------------------------------------------
+  # macOS: build the release binary and create a .app bundle + .dmg.
+  # ------------------------------------------------------------------
+  macos:
+    name: macOS (DMG)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binary
+        run: cargo build --release
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle
+      - name: Create .app bundle
+        run: cargo bundle --release
+      - name: Create .dmg
+        run: |
+          hdiutil create -volname "Coding Assistant" \
+            -srcfolder "target/release/bundle/osx/Coding Assistant.app" \
+            -ov -format UDZO "Coding-Assistant.dmg"
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coding-assistant-macos-dmg
+          path: Coding-Assistant.dmg
+
+  # ------------------------------------------------------------------
+  # Linux: build the release binary and create a .deb package.
+  # ------------------------------------------------------------------
+  linux:
+    name: Linux (DEB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxdo-dev libssl-dev
+      - name: Build release binary
+        run: cargo build --release
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+      - name: Build .deb package
+        run: cargo deb
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coding-assistant-linux-deb
+          path: target/debian/*.deb

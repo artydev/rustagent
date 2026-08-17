@@ -1,0 +1,1367 @@
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
+
+mod api;
+mod config;
+mod flow;
+mod platform;
+
+use freya::{clipboard::Clipboard, code_editor::*, prelude::*, terminal::*, text_edit::TextEditor};
+use futures_util::FutureExt;
+use rig::{client::CompletionClient, completion::Prompt, providers::openai};
+use ropey::Rope;
+use tokio::runtime::Builder;
+
+// Albert API configuration (French government AI service)
+const ALBERT_ENDPOINT: &str = "https://albert.api.etalab.gouv.fr/v1";
+const ALBERT_MODEL: &str = "deepseek-v4-flash";
+
+#[derive(Clone, Debug, PartialEq)]
+enum Role {
+    AI,
+    User,
+}
+
+#[derive(Clone, Debug)]
+struct Message {
+    role: Role,
+    content: String,
+}
+
+/// A programming language supported by the editor. Each language knows its
+/// tree-sitter grammar, highlights query, file extension and how to run it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SupportedLanguage {
+    Python,
+    Rust,
+    JavaScript,
+    TypeScript,
+    Html,
+    Css,
+    C,
+    Cpp,
+    Java,
+    Go,
+}
+
+impl SupportedLanguage {
+    /// The file extension (without the dot) used for the editor label and the
+    /// temp file written before execution.
+    fn extension(&self) -> &'static str {
+        match self {
+            SupportedLanguage::Python => "py",
+            SupportedLanguage::Rust => "rs",
+            SupportedLanguage::JavaScript => "js",
+            SupportedLanguage::TypeScript => "ts",
+            SupportedLanguage::Html => "html",
+            SupportedLanguage::Css => "css",
+            SupportedLanguage::C => "c",
+            SupportedLanguage::Cpp => "cpp",
+            SupportedLanguage::Java => "java",
+            SupportedLanguage::Go => "go",
+        }
+    }
+
+    /// The file name shown in the editor header.
+    ///
+    /// Java is special-cased to `Main.java` so the header matches the temp
+    /// file written before execution (the Java compiler requires the public
+    /// class name to match the file name).
+    fn file_name(&self) -> String {
+        if *self == SupportedLanguage::Java {
+            return "Main.java".to_string();
+        }
+        format!("main.{}", self.extension())
+    }
+
+    /// Build the tree-sitter language + highlights query for the editor.
+    fn editor_language(&self) -> EditorLanguage {
+        match self {
+            SupportedLanguage::Python => EditorLanguage::new(
+                tree_sitter_python::LANGUAGE,
+                tree_sitter_python::HIGHLIGHTS_QUERY,
+            ),
+            SupportedLanguage::Rust => EditorLanguage::new(
+                tree_sitter_rust::LANGUAGE,
+                tree_sitter_rust::HIGHLIGHTS_QUERY,
+            ),
+            SupportedLanguage::JavaScript => EditorLanguage::new(
+                tree_sitter_javascript::LANGUAGE,
+                tree_sitter_javascript::HIGHLIGHT_QUERY,
+            ),
+            SupportedLanguage::TypeScript => EditorLanguage::new(
+                tree_sitter_typescript::LANGUAGE_TYPESCRIPT,
+                tree_sitter_typescript::HIGHLIGHTS_QUERY,
+            ),
+            SupportedLanguage::Html => EditorLanguage::new(
+                tree_sitter_html::LANGUAGE,
+                tree_sitter_html::HIGHLIGHTS_QUERY,
+            ),
+            SupportedLanguage::Css => {
+                EditorLanguage::new(tree_sitter_css::LANGUAGE, tree_sitter_css::HIGHLIGHTS_QUERY)
+            }
+            SupportedLanguage::C => {
+                EditorLanguage::new(tree_sitter_c::LANGUAGE, tree_sitter_c::HIGHLIGHT_QUERY)
+            }
+            SupportedLanguage::Cpp => {
+                EditorLanguage::new(tree_sitter_cpp::LANGUAGE, tree_sitter_cpp::HIGHLIGHT_QUERY)
+            }
+            SupportedLanguage::Java => EditorLanguage::new(
+                tree_sitter_java::LANGUAGE,
+                tree_sitter_java::HIGHLIGHTS_QUERY,
+            ),
+            SupportedLanguage::Go => {
+                EditorLanguage::new(tree_sitter_go::LANGUAGE, tree_sitter_go::HIGHLIGHTS_QUERY)
+            }
+        }
+    }
+
+    /// The shell command used to run a file of this language. The `{file}`
+    /// placeholder is replaced with the path to the temp file.
+    fn run_command(&self, file: &std::path::Path) -> String {
+        let file = file.display().to_string();
+        // Use the platform temp directory for compiled binaries so the
+        // command works on Windows, macOS, and Linux alike.
+        let temp_dir = std::env::temp_dir();
+        let bin = |name: &str| temp_dir.join(name).display().to_string();
+        match self {
+            SupportedLanguage::Python => {
+                format!("{} {}\n", platform::python_command(), file)
+            }
+            SupportedLanguage::Rust => {
+                let out = bin("main_rs");
+                format!(
+                    "{} {} -o {} && {}\n",
+                    platform::rust_compiler(),
+                    file,
+                    out,
+                    out
+                )
+            }
+            SupportedLanguage::JavaScript => {
+                format!("{} {}\n", platform::node_runner(), file)
+            }
+            SupportedLanguage::TypeScript => {
+                format!("{} {}\n", platform::ts_runner(), file)
+            }
+            SupportedLanguage::Html => platform::open_command(&file),
+            SupportedLanguage::Css => "echo 'CSS is a stylesheet, nothing to run.'\n".to_string(),
+            SupportedLanguage::C => {
+                let out = bin("main_c");
+                format!(
+                    "{} {} -o {} && {}\n",
+                    platform::c_compiler(),
+                    file,
+                    out,
+                    out
+                )
+            }
+            SupportedLanguage::Cpp => {
+                let out = bin("main_cpp");
+                format!(
+                    "{} {} -o {} && {}\n",
+                    platform::cpp_compiler(),
+                    file,
+                    out,
+                    out
+                )
+            }
+            SupportedLanguage::Java => {
+                // Java requires the file name to match the public class name.
+                format!(
+                    "{} {} && {} Main\n",
+                    platform::java_compiler(),
+                    file,
+                    platform::java_runtime()
+                )
+            }
+            SupportedLanguage::Go => {
+                format!("{} run {}\n", platform::go_runner(), file)
+            }
+        }
+    }
+
+    /// Detect the language from a user message. Looks for common language
+    /// names and aliases. Defaults to Python.
+    fn detect(message: &str) -> SupportedLanguage {
+        let lower = message.to_lowercase();
+        let contains = |keywords: &[&str]| keywords.iter().any(|k| lower.contains(k));
+
+        if contains(&["javascript", "js", "node"]) {
+            SupportedLanguage::JavaScript
+        } else if contains(&["typescript", "tsx", "ts "]) {
+            SupportedLanguage::TypeScript
+        } else if contains(&["html"]) {
+            SupportedLanguage::Html
+        } else if contains(&["css"]) {
+            SupportedLanguage::Css
+        } else if contains(&["c++", "cpp", "cplusplus"]) {
+            SupportedLanguage::Cpp
+        } else if contains(&["golang", "go "]) {
+            SupportedLanguage::Go
+        } else if contains(&["java"]) {
+            SupportedLanguage::Java
+        } else if contains(&["rust", "rs"]) {
+            SupportedLanguage::Rust
+        } else if contains(&["c "]) {
+            SupportedLanguage::C
+        } else {
+            // Default to Python for anything else (including "python").
+            SupportedLanguage::Python
+        }
+    }
+}
+
+/// Returns `true` if a chat message should be sent to the LLM.
+///
+/// Empty or whitespace-only messages are ignored. This is the single source
+/// of truth for the empty-check shared by both the Send button and the Enter
+/// key, so both triggers behave identically.
+fn should_send_message(message: &str) -> bool {
+    !message.trim().is_empty()
+}
+
+fn main() {
+    let rt = Builder::new_multi_thread().enable_all().build().unwrap();
+    let _rt = rt.enter();
+    launch(
+        LaunchConfig::new().with_window(
+            WindowConfig::new(app)
+                .with_title("RustAgent")
+                .with_size(1400., 700.),
+        ),
+    )
+}
+
+/// Spawn a fresh terminal and return its handle (or None on failure).
+/// The shell and environment are chosen per-platform via the `platform` module.
+fn spawn_terminal() -> Option<TerminalHandle> {
+    let mut cmd = CommandBuilder::new(platform::terminal_shell());
+    for (key, value) in platform::terminal_env() {
+        cmd.env(key, value);
+    }
+    TerminalHandle::new(TerminalId::new(), cmd, None).ok()
+}
+
+/// Builds the code editor pane. The editor state is lifted up into `app()` so
+/// that the chat and terminal panels can read/write the same content.
+fn code_editor_panel(editor: Writable<CodeEditorData>, file_name: String) -> impl IntoElement {
+    let a11y_id = use_a11y();
+
+    rect()
+        .expanded()
+        .content(Content::Flex)
+        .background((30, 30, 30))
+        .child(
+            rect()
+                .width(Size::fill())
+                .height(Size::px(32.))
+                .padding(8.)
+                .background((40, 40, 40))
+                .border(Border::new().fill((55, 55, 55)).width(BorderWidth {
+                    top: 0.,
+                    right: 0.,
+                    bottom: 1.,
+                    left: 0.,
+                }))
+                .horizontal()
+                .cross_align(Alignment::Center)
+                .child(
+                    label()
+                        .text(file_name)
+                        .color((245, 245, 245))
+                        .font_size(13.)
+                        .font_weight(FontWeight::BOLD),
+                ),
+        )
+        .child(
+            rect()
+                .expanded()
+                .padding(6.)
+                .child(CodeEditor::new(editor, a11y_id).background((20, 20, 20))),
+        )
+}
+
+fn app() -> impl IntoElement {
+    // Check the API key configuration at startup so the user is informed
+    // immediately if it is missing or invalid, rather than failing silently
+    // on the first message.
+    let startup_key_config = config::ApiKeyConfig::load();
+    let startup_key_warning = startup_key_config.validate().err();
+
+    let messages = use_state(|| {
+        let mut initial = vec![Message {
+            role: Role::AI,
+            content: "Hello! I'm your coding assistant. Ask me to write code in any language (Python, JavaScript, TypeScript, HTML, CSS, C, C++, Java, Go, Rust) and I'll put it in the editor for you. You can then run it with the **Execute Code** button. Type **clear editor** to empty the code editor.".to_string(),
+        }];
+        if let Some(warning) = startup_key_warning {
+            initial.push(Message {
+                role: Role::AI,
+                content: format!("⚠️ {}\n\nYou can set your API key via the **Settings** button in the toolbar, the `{}` environment variable, or the config file at `{}`.", warning, config::API_KEY_ENV, config::ApiKeyConfig::config_file_path().display()),
+            });
+        }
+        initial
+    });
+    let input_value = use_state(String::new);
+    let terminal_handle = use_state(spawn_terminal);
+
+    // Whether the settings panel is open.
+    let show_settings = use_state(|| false);
+    // The API key being edited in the settings panel.
+    let settings_key_input = use_state(|| config::ApiKeyConfig::load().key);
+    // Feedback message shown in the settings panel after saving.
+    let settings_feedback = use_state(String::new);
+
+    // The currently selected language. Defaults to Python.
+    let current_language = use_state(|| SupportedLanguage::Python);
+
+    // Shared editor state, lifted up so the chat and terminal panels can read
+    // and write the exact same content that is displayed in the editor.
+    let editor = use_state(|| {
+        let rope = Rope::from_str(
+            r#"def fibonacci(n):
+    """Return the first n Fibonacci numbers."""
+    if n <= 0:
+        return []
+    if n == 1:
+        return [0]
+    
+    fib = [0, 1]
+    for i in range(2, n):
+        fib.append(fib[i - 1] + fib[i - 2])
+    return fib
+
+if __name__ == "__main__":
+    result = fibonacci(10)
+    print("First 10 Fibonacci numbers:", result)
+"#,
+        );
+        let language = SupportedLanguage::Python.editor_language();
+        let mut editor = CodeEditorData::new(rope, language);
+        editor.set_theme(EditorSyntaxTheme::dark());
+        editor.parse();
+        editor.measure(14., "Jetbrains Mono");
+        editor
+    });
+
+    // Toolbar actions
+    let clear_chat = {
+        let mut messages = messages;
+        move |_| {
+            messages.write().clear();
+            messages.write().push(Message {
+                role: Role::AI,
+                content: "Chat cleared. How can I help you?".to_string(),
+            });
+        }
+    };
+
+    let reset_terminal = {
+        let mut terminal_handle = terminal_handle;
+        move |_| {
+            // Kill the current terminal (if any) and spawn a fresh one
+            *terminal_handle.write() = spawn_terminal();
+        }
+    };
+
+    // Save the API key entered in the settings panel to the config file.
+    let save_api_key = {
+        let mut settings_feedback = settings_feedback;
+        let mut show_settings = show_settings;
+        move |_| {
+            let key = settings_key_input.read().trim().to_string();
+            let cfg = config::ApiKeyConfig {
+                key: key.clone(),
+                source: config::KeySource::ConfigFile,
+            };
+            match cfg.validate() {
+                Ok(()) => match cfg.save() {
+                    Ok(()) => {
+                        *settings_feedback.write() = "API key saved to config file.".to_string();
+                        // Close the panel after a successful save.
+                        *show_settings.write() = false;
+                    }
+                    Err(e) => {
+                        *settings_feedback.write() = format!("Save failed: {}", e);
+                    }
+                },
+                Err(e) => {
+                    *settings_feedback.write() = e;
+                }
+            }
+        }
+    };
+
+    // Close the settings panel.
+    let close_settings = {
+        let mut show_settings = show_settings;
+        move |_| {
+            *show_settings.write() = false;
+        }
+    };
+
+    // Shared chat send logic. Both the Send button and the Enter key route
+    // through this same code path so they behave identically. It takes the raw
+    // message text, ignores empty/whitespace-only messages, and dispatches it
+    // (clear editor locally, or call the AI).
+    let send_text = {
+        let mut messages = messages.clone();
+        let mut input_value = input_value.clone();
+        let mut editor = editor.clone();
+        let mut current_language = current_language.clone();
+        move |user_message: String| {
+            if !should_send_message(&user_message) {
+                return;
+            }
+
+            // Add user message
+            messages.write().push(Message {
+                role: Role::User,
+                content: user_message.clone(),
+            });
+
+            // Detect the language the user is asking about.
+            let detected_language = SupportedLanguage::detect(&user_message);
+
+            // Check if the user wants to clear the editor. This is handled
+            // locally (no AI call needed).
+            let wants_clear_editor = flow::wants_clear_editor(&user_message);
+
+            // Check if user wants to generate code. This is intentionally broad:
+            // it triggers when the user asks to write/generate/create/make code,
+            // a function, a program, a script, etc.
+            let wants_code = flow::wants_code(&user_message);
+
+            // Clear input
+            *input_value.write() = String::new();
+
+            // Handle "clear editor" locally without calling the AI.
+            if wants_clear_editor {
+                // Re-setting the language invalidates the cached tree-sitter
+                // tree. This is essential: if we cleared the rope while the old
+                // tree (built from the previous content) was still cached, the
+                // next parse would try to read bytes that no longer exist and
+                // panic. We also seed the rope with a single newline so it is
+                // never empty, which keeps the highlighter happy.
+                editor
+                    .write()
+                    .set_language(current_language.read().editor_language());
+                editor.write().set("\n");
+                editor.write().set_selection((0, 0));
+                editor.write().parse();
+                editor.write().measure(14., "Jetbrains Mono");
+                messages.write().push(Message {
+                    role: Role::AI,
+                    content: "The code editor has been cleared.".to_string(),
+                });
+                return;
+            }
+
+            // Add AI response using rig-core with the Albert endpoint
+            spawn(async move {
+                // Load the Albert API key from env var or config file.
+                let api_key_config = config::ApiKeyConfig::load();
+
+                // If no key is configured, inform the user instead of silently
+                // failing on the first request.
+                if let Err(msg) = api_key_config.validate() {
+                    messages.write().push(Message {
+                        role: Role::AI,
+                        content: format!(
+                            "⚠️ {}\n\nPlease configure your API key and try again.",
+                            msg
+                        ),
+                    });
+                    return;
+                }
+
+                // Build an OpenAI-compatible Completions client pointed at the Albert endpoint
+                let client = openai::CompletionsClient::builder()
+                    .api_key(&api_key_config.key)
+                    .base_url(ALBERT_ENDPOINT)
+                    .build();
+
+                match client {
+                    Ok(client) => {
+                        let agent = client.agent(ALBERT_MODEL).build();
+                        // Run the prompt with a timeout and retry/backoff for
+                        // transient failures (network, rate limit, timeout).
+                        let result =
+                            api::prompt_with_retry(|| {
+                                let agent = agent.clone();
+                                let user_message = user_message.clone();
+                                async move {
+                                    agent.prompt(&user_message).await.map_err(|e| e.to_string())
+                                }
+                            })
+                            .await;
+
+                        match result {
+                            Ok(response) => {
+                                // Decide what to do with the response: inject code
+                                // into the editor, or show the raw response.
+                                let final_response = match flow::decide_editor_action(
+                                    &response,
+                                    wants_code,
+                                    detected_language,
+                                ) {
+                                    flow::EditorAction::Insert { language, code } => {
+                                        // Switch the editor to the detected language.
+                                        *current_language.write() = language;
+                                        editor.write().set_language(language.editor_language());
+                                        // Push the generated code into the shared editor state.
+                                        editor.write().set(&code);
+                                        editor.write().set_selection((0, 0));
+                                        editor.write().parse();
+                                        editor.write().measure(14., "Jetbrains Mono");
+                                        // Only show a confirmation in the chat, NOT the code.
+                                        // The code goes exclusively to the editor.
+                                        flow::insertion_confirmation(language)
+                                    }
+                                    flow::EditorAction::ShowResponse => response,
+                                };
+
+                                messages.write().push(Message {
+                                    role: Role::AI,
+                                    content: final_response,
+                                });
+                            }
+                            Err((category, message)) => {
+                                messages.write().push(Message {
+                                    role: Role::AI,
+                                    content: format!("⚠️ {}", message),
+                                });
+                                let _ = category;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        messages.write().push(Message {
+                            role: Role::AI,
+                            content: format!("Failed to build client: {}", e),
+                        });
+                    }
+                }
+            });
+        }
+    };
+
+    // Send button handler: reads the current input field and sends it.
+    let send_message = {
+        let input_value = input_value;
+        let mut send_text = send_text.clone();
+        move |_| {
+            let text = input_value.read().clone();
+            send_text(text);
+        }
+    };
+
+    // Enter key handler: the Input component calls `on_submit` with the
+    // committed text when Enter is pressed, so we send it directly.
+    let on_submit = {
+        let mut send_text = send_text.clone();
+        move |text: String| {
+            send_text(text);
+        }
+    };
+
+    // Execute the code currently in the editor inside the terminal.
+    let execute_code = {
+        let mut messages = messages;
+        move |_| {
+            // Read the live content straight from the shared editor state.
+            let code_content = editor.read().rope.to_string();
+            let language = *current_language.read();
+            let Some(terminal_handle) = terminal_handle.read().clone() else {
+                messages.write().push(Message {
+                    role: Role::AI,
+                    content: "Terminal is not available. Please reset the terminal.".to_string(),
+                });
+                return;
+            };
+
+            // Write the code to a temp file so it can be run.
+            let temp_dir = std::env::temp_dir();
+            let source_path = temp_dir.join(flow::temp_source_file(language));
+            if let Err(e) = std::fs::write(&source_path, &code_content) {
+                messages.write().push(Message {
+                    role: Role::AI,
+                    content: format!("Failed to write code file: {}", e),
+                });
+                return;
+            }
+
+            // Run the file inside the terminal using the language's command.
+            let command = language.run_command(&source_path);
+            let _ = terminal_handle.write(command.as_bytes());
+
+            messages.write().push(Message {
+                role: Role::AI,
+                content: format!(
+                    "Code execution started in the terminal ({}).",
+                    flow::language_name(language)
+                ),
+            });
+        }
+    };
+
+    // Chat area
+    let chat_area = rect().width(Size::fill()).height(Size::flex(1.)).child(
+        ScrollView::new().child(rect().width(Size::fill()).padding(16.).children(
+            messages.read().iter().map(|msg| {
+                let is_user = msg.role == Role::User;
+                // OBSIDIAN THEME COLORS
+                let bg_color = if is_user {
+                    (45, 55, 70) // Obsidian blue-gray for user messages
+                } else {
+                    (25, 25, 35) // Deep obsidian background for AI messages
+                };
+                let align = if is_user {
+                    Alignment::End
+                } else {
+                    Alignment::Start
+                };
+                let text_align = if is_user {
+                    TextAlign::End
+                } else {
+                    TextAlign::Start
+                };
+                let text_color = if is_user {
+                    (220, 220, 230) // Light text for user messages
+                } else {
+                    (180, 180, 190) // Subtle text for AI messages
+                };
+
+                rect()
+                    .width(Size::fill())
+                    .margin(8.)
+                    .cross_align(align)
+                    .child(
+                        rect()
+                            .padding(12.)
+                            .background(bg_color)
+                            .corner_radius(16.)
+                            .color(text_color)
+                            .text_align(text_align)
+                            .child(if is_user {
+                                SelectableText::new()
+                                    .span(msg.content.clone())
+                                    .color(text_color)
+                                    .into_element()
+                            } else {
+                                MarkdownViewer::new(msg.content.clone())
+                                    .color(text_color)
+                                    .into_element()
+                            }),
+                    )
+            }),
+        )),
+    );
+
+    // Input area
+    let input_area = rect()
+        .width(Size::fill())
+        .height(Size::px(60.))
+        .padding(12.)
+        .child(
+            rect()
+                .horizontal()
+                .expanded()
+                .cross_align(Alignment::Center)
+                .spacing(8.)
+                .content(Content::Flex)
+                .child(
+                    Input::new(input_value)
+                        .background((65, 65, 65))
+                        .focus_background((75, 75, 75))
+                        .border_fill(Color::TRANSPARENT)
+                        .color((200, 200, 200))
+                        .placeholder("Type your message...")
+                        .width(Size::flex(1.))
+                        .on_submit(on_submit),
+                )
+                .child(
+                    Button::new()
+                        .background((65, 65, 65))
+                        .hover_background((75, 75, 75))
+                        .border_fill(Color::TRANSPARENT)
+                        .color((200, 200, 200))
+                        .on_press(send_message)
+                        .child("Send"),
+                ),
+        );
+
+    let chat_panel = rect()
+        .expanded()
+        .content(Content::Flex)
+        .background((30, 30, 30))
+        .child(chat_area)
+        .child(input_area);
+
+    // Toolbar
+    let toolbar = rect()
+        .width(Size::fill())
+        .height(Size::px(44.))
+        .padding(8.)
+        .background((40, 40, 40))
+        .border(Border::new().fill((55, 55, 55)).width(BorderWidth {
+            top: 0.,
+            right: 0.,
+            bottom: 1.,
+            left: 0.,
+        }))
+        .horizontal()
+        .cross_align(Alignment::Center)
+        .spacing(8.)
+        .child(
+            label()
+                .text("Coding Assistant")
+                .color((245, 245, 245))
+                .font_size(16.)
+                .font_weight(FontWeight::BOLD),
+        )
+        .child(rect().width(Size::flex(1.)))
+        .child(
+            Button::new()
+                .background((65, 65, 65))
+                .hover_background((75, 75, 75))
+                .border_fill(Color::TRANSPARENT)
+                .color((200, 200, 200))
+                .on_press({
+                    let mut show_settings = show_settings;
+                    move |_| {
+                        *show_settings.write() = true;
+                    }
+                })
+                .child("Settings"),
+        )
+        .child(
+            Button::new()
+                .background((65, 65, 65))
+                .hover_background((75, 75, 75))
+                .border_fill(Color::TRANSPARENT)
+                .color((200, 200, 200))
+                .on_press(clear_chat)
+                .child("Clear Chat"),
+        )
+        .child(
+            Button::new()
+                .background((65, 65, 65))
+                .hover_background((75, 75, 75))
+                .border_fill(Color::TRANSPARENT)
+                .color((200, 200, 200))
+                .on_press(reset_terminal)
+                .child("Reset Terminal"),
+        );
+
+    // Execute button for code
+    let execute_button = Button::new()
+        .background((65, 65, 65))
+        .hover_background((75, 75, 75))
+        .border_fill(Color::TRANSPARENT)
+        .color((200, 200, 200))
+        .on_press(execute_code)
+        .child("Execute Code");
+
+    // A web image stretched across both panels as a decorative overlay. It is
+    // wrapped in a non-interactive rect so it never blocks pointer events from
+    // reaching the chat or terminal underneath, and it is placed on the overlay
+    // layer so it always renders on top of the panels.
+    let overlay = rect()
+        .layer(Layer::Overlay)
+        .position(Position::new_absolute().top(0.).left(0.))
+        .width(Size::fill())
+        .height(Size::fill())
+        .interactive(Interactive::No)
+        .child(
+            ImageViewer::new(
+                "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=700&fit=crop",
+            )
+            .decode_mode(DecodeMode::Custom(Size2D::new(1200., 700.)))
+            .aspect_ratio(AspectRatio::None)
+            .image_cover(ImageCover::Fill)
+            .width(Size::fill())
+            .height(Size::fill())
+            .opacity(0.35),
+        );
+
+    rect()
+        .expanded()
+        .background((30, 30, 30))
+        .content(Content::Flex)
+        .child(toolbar)
+        .child(
+            rect()
+                .expanded()
+                .child(
+                    ResizableContainer::new()
+                        .direction(Direction::Horizontal)
+                        .panel(
+                            ResizablePanel::new(PanelSize::percent(33.)).child(
+                                rect()
+                                    .expanded()
+                                    .content(Content::Flex)
+                                    .child(chat_panel)
+                                    .child(
+                                        rect()
+                                            .width(Size::fill())
+                                            .height(Size::px(40.))
+                                            .padding(8.)
+                                            .child(execute_button),
+                                    ),
+                            ),
+                        )
+                        .panel(ResizablePanel::new(PanelSize::percent(33.)).child(
+                            code_editor_panel(editor.into(), current_language.read().file_name()),
+                        ))
+                        .panel(
+                            ResizablePanel::new(PanelSize::percent(34.))
+                                .child(terminal_panel(terminal_handle.into_writable())),
+                        ),
+                )
+                .child(overlay)
+                .child(if *show_settings.read() {
+                    settings_panel(
+                        settings_key_input.into(),
+                        settings_feedback.into(),
+                        save_api_key,
+                        close_settings,
+                    )
+                    .into_element()
+                } else {
+                    rect()
+                        .layer(Layer::Overlay)
+                        .width(Size::px(0.))
+                        .height(Size::px(0.))
+                        .into_element()
+                }),
+        )
+}
+
+/// A modal settings panel for configuring the Albert API key.
+fn settings_panel<H1, H2>(
+    key_input: Writable<String>,
+    feedback: Writable<String>,
+    on_save: H1,
+    on_close: H2,
+) -> impl IntoElement
+where
+    H1: Into<EventHandler<Event<PressEventData>>>,
+    H2: Into<EventHandler<Event<PressEventData>>>,
+{
+    rect()
+        .layer(Layer::Overlay)
+        .position(Position::new_absolute().top(0.).left(0.))
+        .width(Size::fill())
+        .height(Size::fill())
+        .background((0, 0, 0, 180))
+        .center()
+        .child(
+            rect()
+                .width(Size::px(480.))
+                .padding(24.)
+                .background((45, 45, 55))
+                .corner_radius(12.)
+                .shadow(Shadow::new().x(0.).y(4.).blur(20.).color((0, 0, 0, 120)))
+                .content(Content::Flex)
+                .spacing(12.)
+                .child(
+                    label()
+                        .text("Settings")
+                        .color((245, 245, 245))
+                        .font_size(18.)
+                        .font_weight(FontWeight::BOLD),
+                )
+                .child(
+                    label()
+                        .text("Albert API Key")
+                        .color((200, 200, 210))
+                        .font_size(13.),
+                )
+                .child(
+                    Input::new(key_input)
+                        .background((30, 30, 40))
+                        .focus_background((40, 40, 50))
+                        .border_fill(Color::TRANSPARENT)
+                        .color((220, 220, 230))
+                        .placeholder("sk-...")
+                        .width(Size::fill()),
+                )
+                .child(
+                    label()
+                        .text(format!(
+                            "Saved to: {}",
+                            config::ApiKeyConfig::config_file_path().display()
+                        ))
+                        .color((150, 150, 160))
+                        .font_size(11.),
+                )
+                .child(if !feedback.read().is_empty() {
+                    label()
+                        .text(feedback.read().clone())
+                        .color((255, 200, 120))
+                        .font_size(12.)
+                        .into_element()
+                } else {
+                    rect()
+                        .width(Size::px(0.))
+                        .height(Size::px(0.))
+                        .into_element()
+                })
+                .child(
+                    rect()
+                        .horizontal()
+                        .cross_align(Alignment::Center)
+                        .spacing(8.)
+                        .child(
+                            Button::new()
+                                .background((65, 65, 75))
+                                .hover_background((75, 75, 85))
+                                .border_fill(Color::TRANSPARENT)
+                                .color((220, 220, 230))
+                                .on_press(on_save)
+                                .child("Save"),
+                        )
+                        .child(
+                            Button::new()
+                                .background((65, 65, 75))
+                                .hover_background((75, 75, 85))
+                                .border_fill(Color::TRANSPARENT)
+                                .color((220, 220, 230))
+                                .on_press(on_close)
+                                .child("Close"),
+                        ),
+                ),
+        )
+}
+
+fn terminal_panel(handle: Writable<Option<TerminalHandle>>) -> impl IntoElement {
+    let handle_for_future = handle.clone();
+    use_future(move || {
+        let mut handle_for_future = handle_for_future.clone();
+        async move {
+            let terminal_handle = handle_for_future.read().clone();
+            let Some(terminal_handle) = terminal_handle else {
+                return;
+            };
+            loop {
+                futures_util::select! {
+                    _ = terminal_handle.closed().fuse() => {
+                        let _ = handle_for_future.write().take();
+                        break;
+                    }
+                    _ = terminal_handle.title_changed().fuse() => {
+                        if let Some(new_title) = terminal_handle.title() {
+                            Platform::get().with_window(None, move |window| {
+                                window.set_title(&new_title);
+                            });
+                        }
+                    }
+                    _ = terminal_handle.clipboard_changed().fuse() => {
+                        if let Some(text) = terminal_handle.clipboard_content() {
+                            let _ = Clipboard::set(text);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let a11y_id = use_a11y();
+    let focus = use_focus(a11y_id);
+    let mut dimensions = use_state(|| (0.0, 0.0));
+    let mut click_origin = use_state(|| None::<(usize, usize)>);
+
+    let handle_for_side_effect = handle.clone();
+    use_side_effect(move || {
+        let focused = *Platform::get().is_app_focused.read() && focus().is_focused();
+        if let Some(handle) = handle_for_side_effect.read().clone() {
+            handle.focus_changed(focused);
+        }
+    });
+
+    rect()
+        .expanded()
+        .center()
+        .background((30, 30, 30))
+        .color((245, 245, 245))
+        .child(if let Some(handle) = handle.read().clone() {
+            rect()
+                .child(
+                    Terminal::new(handle.clone())
+                        .on_measured(move |(char_width, line_height)| {
+                            dimensions.set((char_width, line_height));
+                        })
+                        .on_mouse_down({
+                            let handle = handle.clone();
+                            move |e: Event<MouseEventData>| {
+                                a11y_id.request_focus();
+                                let (char_width, line_height) = dimensions();
+                                let col = (e.element_location.x / char_width as f64) as f32;
+                                let row = (e.element_location.y / line_height as f64) as f32;
+                                click_origin.set(Some((row as usize, col as usize)));
+                                let button = match e.button {
+                                    Some(MouseButton::Middle) => TerminalMouseButton::Middle,
+                                    Some(MouseButton::Right) => TerminalMouseButton::Right,
+                                    _ => TerminalMouseButton::Left,
+                                };
+                                let selection_type = match EventsCombos::pressed(e.element_location)
+                                {
+                                    PressEventType::Double => SelectionType::Semantic,
+                                    PressEventType::Triple => SelectionType::Lines,
+                                    _ => SelectionType::Simple,
+                                };
+                                handle.mouse_down(row, col, button, selection_type);
+                            }
+                        })
+                        .on_mouse_move({
+                            let handle = handle.clone();
+                            move |e: Event<MouseEventData>| {
+                                let (char_width, line_height) = dimensions();
+                                let col = (e.element_location.x / char_width as f64) as f32;
+                                let row = (e.element_location.y / line_height as f64) as f32;
+                                handle.mouse_move(row, col);
+                            }
+                        })
+                        .on_mouse_up({
+                            let handle = handle.clone();
+                            move |e: Event<MouseEventData>| {
+                                let (char_width, line_height) = dimensions();
+                                let col = (e.element_location.x / char_width as f64) as f32;
+                                let row = (e.element_location.y / line_height as f64) as f32;
+                                let button = match e.button {
+                                    Some(MouseButton::Middle) => TerminalMouseButton::Middle,
+                                    Some(MouseButton::Right) => TerminalMouseButton::Right,
+                                    _ => TerminalMouseButton::Left,
+                                };
+                                handle.mouse_up(row, col, button);
+                                let origin = click_origin();
+                                click_origin.set(None);
+                                if button == TerminalMouseButton::Left
+                                    && origin == Some((row as usize, col as usize))
+                                    && let Some(url) = handle.hyperlink_at(row, col)
+                                {
+                                    let _ = open::that(url);
+                                }
+                            }
+                        })
+                        .on_global_pointer_press({
+                            let handle = handle.clone();
+                            move |_: Event<PointerEventData>| {
+                                handle.release();
+                            }
+                        })
+                        .on_wheel({
+                            let handle = handle.clone();
+                            move |e: Event<WheelEventData>| {
+                                let (char_width, line_height) = dimensions();
+                                let (mouse_x, mouse_y) = e.element_location.to_tuple();
+                                let col = (mouse_x / char_width as f64) as f32;
+                                let row = (mouse_y / line_height as f64) as f32;
+                                handle.wheel(e.delta_y, row, col);
+                            }
+                        })
+                        .a11y_id(a11y_id)
+                        .a11y_role(AccessibilityRole::Terminal)
+                        .a11y_auto_focus(true)
+                        .on_key_up({
+                            let handle = handle.clone();
+                            move |e: Event<KeyboardEventData>| {
+                                if e.key == Key::Named(NamedKey::Shift) {
+                                    handle.shift_pressed(false);
+                                }
+                            }
+                        })
+                        .on_key_down(move |e: Event<KeyboardEventData>| {
+                            let ctrl_shift =
+                                e.modifiers.contains(Modifiers::CONTROL | Modifiers::SHIFT);
+
+                            match &e.key {
+                                Key::Character(ch)
+                                    if ctrl_shift && ch.eq_ignore_ascii_case("c") =>
+                                {
+                                    if let Some(text) = handle.get_selected_text() {
+                                        let _ = Clipboard::set(text);
+                                    }
+                                }
+                                Key::Character(ch)
+                                    if ctrl_shift && ch.eq_ignore_ascii_case("v") =>
+                                {
+                                    if let Ok(text) = Clipboard::get() {
+                                        let _ = handle.paste(&text);
+                                    }
+                                }
+                                _ => {
+                                    let _ = handle.write_key(&e.key, e.modifiers);
+                                }
+                            }
+                        }),
+                )
+                .expanded()
+                .background((10, 10, 10))
+                .padding(6.)
+                .into_element()
+        } else {
+            "Terminal exited".into_element()
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ------------------------------------------------------------------
+    // should_send_message()
+    //
+    // This is the shared empty-check used by both the Send button and the
+    // Enter key, so it must reject empty/whitespace-only messages and accept
+    // anything else.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn empty_message_is_not_sent() {
+        assert!(!should_send_message(""));
+    }
+
+    #[test]
+    fn whitespace_only_message_is_not_sent() {
+        assert!(!should_send_message("   "));
+        assert!(!should_send_message("\t"));
+        assert!(!should_send_message("\n"));
+        assert!(!should_send_message(" \t \n "));
+    }
+
+    #[test]
+    fn non_empty_message_is_sent() {
+        assert!(should_send_message("hello"));
+        assert!(should_send_message(" write a function "));
+        assert!(should_send_message("clear editor"));
+        assert!(should_send_message("a"));
+    }
+
+    #[test]
+    fn message_with_leading_trailing_whitespace_is_sent() {
+        // Whitespace around real content is fine; only all-whitespace is ignored.
+        assert!(should_send_message("  hello  "));
+    }
+
+    // ------------------------------------------------------------------
+    // SupportedLanguage::detect()
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn detect_defaults_to_python() {
+        // Anything that doesn't match a known keyword falls back to Python.
+        assert_eq!(
+            SupportedLanguage::detect("hello there"),
+            SupportedLanguage::Python
+        );
+        assert_eq!(SupportedLanguage::detect(""), SupportedLanguage::Python);
+        assert_eq!(
+            SupportedLanguage::detect("write a program"),
+            SupportedLanguage::Python
+        );
+    }
+
+    #[test]
+    fn detect_python_explicitly() {
+        assert_eq!(
+            SupportedLanguage::detect("write python code"),
+            SupportedLanguage::Python
+        );
+        assert_eq!(
+            SupportedLanguage::detect("a python script"),
+            SupportedLanguage::Python
+        );
+    }
+
+    #[test]
+    fn detect_javascript() {
+        assert_eq!(
+            SupportedLanguage::detect("write javascript"),
+            SupportedLanguage::JavaScript
+        );
+        assert_eq!(
+            SupportedLanguage::detect("a js function"),
+            SupportedLanguage::JavaScript
+        );
+        assert_eq!(
+            SupportedLanguage::detect("node script"),
+            SupportedLanguage::JavaScript
+        );
+    }
+
+    #[test]
+    fn detect_typescript() {
+        assert_eq!(
+            SupportedLanguage::detect("write typescript"),
+            SupportedLanguage::TypeScript
+        );
+        assert_eq!(
+            SupportedLanguage::detect("ts code"),
+            SupportedLanguage::TypeScript
+        );
+    }
+
+    #[test]
+    fn detect_html_and_css() {
+        assert_eq!(
+            SupportedLanguage::detect("make an html page"),
+            SupportedLanguage::Html
+        );
+        assert_eq!(
+            SupportedLanguage::detect("style with css"),
+            SupportedLanguage::Css
+        );
+    }
+
+    #[test]
+    fn detect_c_family() {
+        assert_eq!(
+            SupportedLanguage::detect("write c++ code"),
+            SupportedLanguage::Cpp
+        );
+        assert_eq!(
+            SupportedLanguage::detect("cpp program"),
+            SupportedLanguage::Cpp
+        );
+        assert_eq!(
+            SupportedLanguage::detect("cplusplus"),
+            SupportedLanguage::Cpp
+        );
+        assert_eq!(
+            SupportedLanguage::detect("write c code"),
+            SupportedLanguage::C
+        );
+    }
+
+    #[test]
+    fn detect_go_java_rust() {
+        assert_eq!(
+            SupportedLanguage::detect("golang program"),
+            SupportedLanguage::Go
+        );
+        assert_eq!(SupportedLanguage::detect("go code"), SupportedLanguage::Go);
+        assert_eq!(
+            SupportedLanguage::detect("java class"),
+            SupportedLanguage::Java
+        );
+        assert_eq!(
+            SupportedLanguage::detect("rust code"),
+            SupportedLanguage::Rust
+        );
+        assert_eq!(
+            SupportedLanguage::detect("rs module"),
+            SupportedLanguage::Rust
+        );
+    }
+
+    #[test]
+    fn detect_is_case_insensitive() {
+        assert_eq!(
+            SupportedLanguage::detect("WRITE JAVASCRIPT"),
+            SupportedLanguage::JavaScript
+        );
+        assert_eq!(SupportedLanguage::detect("Rust"), SupportedLanguage::Rust);
+    }
+
+    // ------------------------------------------------------------------
+    // SupportedLanguage::extension() / file_name()
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn extensions_are_correct() {
+        assert_eq!(SupportedLanguage::Python.extension(), "py");
+        assert_eq!(SupportedLanguage::Rust.extension(), "rs");
+        assert_eq!(SupportedLanguage::JavaScript.extension(), "js");
+        assert_eq!(SupportedLanguage::TypeScript.extension(), "ts");
+        assert_eq!(SupportedLanguage::Html.extension(), "html");
+        assert_eq!(SupportedLanguage::Css.extension(), "css");
+        assert_eq!(SupportedLanguage::C.extension(), "c");
+        assert_eq!(SupportedLanguage::Cpp.extension(), "cpp");
+        assert_eq!(SupportedLanguage::Java.extension(), "java");
+        assert_eq!(SupportedLanguage::Go.extension(), "go");
+    }
+
+    #[test]
+    fn file_names_use_extension() {
+        assert_eq!(SupportedLanguage::Python.file_name(), "main.py");
+        assert_eq!(SupportedLanguage::Rust.file_name(), "main.rs");
+        assert_eq!(SupportedLanguage::JavaScript.file_name(), "main.js");
+        assert_eq!(SupportedLanguage::Go.file_name(), "main.go");
+    }
+
+    /// Java's header label must be `Main.java` so it matches the temp file
+    /// written before execution (the compiler requires the public class name
+    /// to match the file name).
+    #[test]
+    fn java_file_name_is_capital_main() {
+        assert_eq!(SupportedLanguage::Java.file_name(), "Main.java");
+    }
+
+    // ------------------------------------------------------------------
+    // SupportedLanguage::run_command()
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn run_command_python_uses_python_interpreter() {
+        let cmd = SupportedLanguage::Python.run_command(std::path::Path::new("/tmp/main.py"));
+        assert!(cmd.contains(platform::python_command()));
+        assert!(cmd.contains("/tmp/main.py"));
+    }
+
+    #[test]
+    fn run_command_rust_compiles_then_runs() {
+        let cmd = SupportedLanguage::Rust.run_command(std::path::Path::new("/tmp/main.rs"));
+        assert!(cmd.contains(platform::rust_compiler()));
+        assert!(cmd.contains("-o"));
+        assert!(cmd.contains("&&"));
+    }
+
+    #[test]
+    fn run_command_javascript_uses_node() {
+        let cmd = SupportedLanguage::JavaScript.run_command(std::path::Path::new("/tmp/main.js"));
+        assert!(cmd.contains(platform::node_runner()));
+        assert!(cmd.contains("/tmp/main.js"));
+    }
+
+    #[test]
+    fn run_command_typescript_uses_ts_runner() {
+        let cmd = SupportedLanguage::TypeScript.run_command(std::path::Path::new("/tmp/main.ts"));
+        assert!(cmd.contains(platform::ts_runner()));
+    }
+
+    #[test]
+    fn run_command_css_is_noop_message() {
+        let cmd = SupportedLanguage::Css.run_command(std::path::Path::new("/tmp/main.css"));
+        assert!(cmd.contains("nothing to run"));
+    }
+
+    #[test]
+    fn run_command_go_uses_go_run() {
+        let cmd = SupportedLanguage::Go.run_command(std::path::Path::new("/tmp/main.go"));
+        assert!(cmd.contains(platform::go_runner()));
+        assert!(cmd.contains("run"));
+    }
+
+    #[test]
+    fn run_command_java_compiles_and_runs_main() {
+        let cmd = SupportedLanguage::Java.run_command(std::path::Path::new("/tmp/main.java"));
+        assert!(cmd.contains(platform::java_compiler()));
+        assert!(cmd.contains(platform::java_runtime()));
+        assert!(cmd.contains("Main"));
+    }
+
+    #[test]
+    fn run_command_c_and_cpp_compile_then_run() {
+        let c_cmd = SupportedLanguage::C.run_command(std::path::Path::new("/tmp/main.c"));
+        assert!(c_cmd.contains(platform::c_compiler()));
+        assert!(c_cmd.contains("-o"));
+
+        let cpp_cmd = SupportedLanguage::Cpp.run_command(std::path::Path::new("/tmp/main.cpp"));
+        assert!(cpp_cmd.contains(platform::cpp_compiler()));
+        assert!(cpp_cmd.contains("-o"));
+    }
+}

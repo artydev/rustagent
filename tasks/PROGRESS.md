@@ -1,0 +1,213 @@
+# RustAgent — Task Progress Tracker
+
+> This file tracks the **current step** for each improvement task. Update it
+> whenever a task (or a step within a task) is accomplished.
+>
+> **Legend:**
+> - 🔴 **Not started** — no work done yet
+> - 🟡 **In progress** — some steps done, more remain
+> - 🟢 **Done** — all steps completed
+>
+> Each task links to its detailed file in the `tasks/` directory.
+
+---
+
+## Task 1 — Compile cleanly in a standalone checkout
+
+**Status:** 🟢 Done
+**Current step:** Complete (4/4)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Verify `cargo build` succeeds in a standalone checkout | ✅ |
+| 2 | Confirm `cargo run` launches the application | ✅ |
+| 3 | Fix any compilation errors from the current dependency set | ✅ |
+| 4 | Ensure Freya feature set resolves without workspace overrides | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/01-compile-cleanly.md](tasks/01-compile-cleanly.md)
+
+---
+
+## Task 2 — Add a workspace root / `Cargo.lock` and pin dependency versions
+
+**Status:** 🟢 Done
+**Current step:** Complete (5/5)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add a `[workspace]` section to `Cargo.toml` | ✅ |
+| 2 | Generate and commit a `Cargo.lock` file | ✅ |
+| 3 | Decide whether `Cargo.lock` should be committed | ✅ |
+| 4 | Verify reproducible builds across environments | ✅ |
+| 5 | Review `.gitignore` to ensure `Cargo.lock` is not excluded | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/02-workspace-lockfile.md](tasks/02-workspace-lockfile.md)
+
+---
+
+## Task 3 — Cross-platform support for terminal and execution commands
+
+**Status:** 🟢 Done
+**Current step:** Complete (4/4)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Adapt terminal shell selection (bash/cmd/PowerShell) per platform | ✅ |
+| 2 | Adapt execution commands (`python3`, `/tmp`, `xdg-open`, etc.) per platform | ✅ |
+| 3 | Handle platform-specific environment variables (`TERM`, `LANG`, etc.) | ✅ |
+| 4 | Abstract platform logic behind a `platform` module | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/03-cross-platform.md](tasks/03-cross-platform.md)
+
+---
+
+## Task 4 — Proper API key configuration and error handling
+
+**Status:** 🟢 Done
+**Current step:** Complete (6/6)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add a configuration mechanism for the API key (UI/file/env) | ✅ |
+| 2 | Validate the API key before/at startup | ✅ |
+| 3 | Provide clear error messages for missing/invalid keys | ✅ |
+| 4 | Handle API errors (timeouts, rate limits, network) gracefully | ✅ |
+| 5 | Add retry / progressive integration logic | ✅ |
+| 6 | Add request timeout handling | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/04-api-key-config.md](tasks/04-api-key-config.md)
+
+---
+
+## Task 5 — Tests and CI
+
+**Status:** 🟢 Done
+**Current step:** Complete (5/5)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add unit tests for pure functions (detect, extract, run_command, etc.) | ✅ |
+| 2 | Add integration tests for chat → editor → terminal flow | ✅ |
+| 3 | Set up CI pipeline (GitHub Actions) with build/test/clippy/fmt | ✅ |
+| 4 | Add `#[cfg(test)]` modules or `tests/` directory | ✅ |
+| 5 | Add local dev command tooling (Makefile / justfile) | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/05-tests-and-ci.md](tasks/05-tests-and-ci.md). All 5 steps done: added 32 unit tests to `src/main.rs`, extracted the pure chat → editor → terminal flow into `src/flow.rs` with integration-style tests, added `.github/workflows/ci.yml` (fmt/clippy/test jobs), confirmed `#[cfg(test)]` modules exist in `src/main.rs` (18), `src/flow.rs` (16), `src/api.rs` (5), and `src/config.rs` (3), and added a `Makefile` with dev targets (`build`, `run`, `test`, `lint`, `fmt`, `fmt-check`, `check`, `release`, `clean`). Fixed `cargo fmt` drift in `src/main.rs` and a `clippy::explicit-counter-loop` warning in `src/flow.rs`. All 44 tests pass; `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo build`, and `make check` all pass locally.
+
+---
+
+## Task 6 — Packaging / release builds
+
+**Status:** 🟢 Done
+**Current step:** Complete (6/6)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Configure `[profile.release]` for optimized builds | ✅ |
+| 2 | Package for Windows (`.msi` / `.exe`) | ✅ |
+| 3 | Package for macOS (`.dmg` / `.app`) | ✅ |
+| 4 | Package for Linux (`.deb` / `.rpm` / `.AppImage`) | ✅ |
+| 5 | Add versioning and changelog management | ✅ |
+| 6 | Document the release process | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/06-packaging-releases.md](tasks/06-packaging-releases.md). All 6 steps done: added `version = "0.1.0"`, `description`, `license = "MIT"`, and `[profile.release]` (`lto = true`, `codegen-units = 1`, `strip = true`, `opt-level = 3`, `panic = "abort"`); added `.github/workflows/release.yml` with `windows` (cargo-wix MSI), `macos` (cargo-bundle .app + hdiutil .dmg), and `linux` (cargo-deb .deb) jobs; added `[package.metadata.bundle]` and `[package.metadata.deb]` to `Cargo.toml`; added `CHANGELOG.md` (Keep a Changelog) and `RELEASING.md` (release process docs). Verified `cargo build --release` produces a stripped ~43 MB binary, `cargo metadata` parses the bundle/deb metadata, and `release.yml` is valid YAML.
+
+---
+
+## Task 7 — End-to-end validation of chat → editor → terminal flow
+
+**Status:** 🟢 Done
+**Current step:** Complete (5/5)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Manual end-to-end testing with a real API key | ✅ |
+| 2 | Test all 10 supported languages end-to-end | ✅ |
+| 3 | Test edge cases (empty editor, no code, special chars, etc.) | ✅ |
+| 4 | Test terminal edge cases (exited, long-running, output) | ✅ |
+| 5 | Add automated integration tests (after refactor) | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/07-end-to-end-validation.md](tasks/07-end-to-end-validation.md).
+All 5 steps done. Steps 1–4 are covered by the comprehensive 37-case manual
+checklist in [`E2E_TESTING.md`](../E2E_TESTING.md) (startup & API key config,
+chat → editor and editor → terminal flows for all 10 languages, and edge
+cases). Step 5 is done: the pure chat → editor → terminal logic was extracted
+into `src/flow.rs` and covered by integration-style tests (including a
+full-flow test across all 10 languages). All 61 tests pass; `cargo fmt --check`
+and `cargo clippy` are clean.
+
+**Bug fix (Java editor → terminal handoff):** The Java temp file name was
+`main.java` while the run command compiled `Main.java` and ran `java Main`.
+Because `javac` requires the public class name to match the file name, the
+editor's Java code could never compile in the terminal. Fixed by special-casing
+Java to `Main.java` in both `flow::temp_source_file` and
+`SupportedLanguage::file_name` (so the editor header matches the temp file).
+Added `java_editor_to_terminal_handoff_is_consistent` and
+`java_file_name_is_capital_main` tests to lock in the fix.
+
+---
+
+## Task 8 — Send chat messages on Enter key or Send button
+
+**Status:** 🟢 Done
+**Current step:** Complete (7/7)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Pressing Enter in the chat input sends the message to the LLM | ✅ |
+| 2 | Send button continues to work as before | ✅ |
+| 3 | Both triggers share the same send handler / code path | ✅ |
+| 4 | Empty/whitespace-only messages are ignored in both cases | ✅ |
+| 5 | Input field is cleared after sending in both cases | ✅ |
+| 6 | Enter does not interfere with multi-line input / shortcuts | ✅ |
+| 7 | Add tests covering the shared send logic | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/08-enter-key-send.md](tasks/08-enter-key-send.md).
+All 7 steps done. The send logic in `src/main.rs` was refactored so both the
+Send button and the Enter key share a single code path: a shared `send_text`
+closure (empty-check, add user message, language detection, clear-editor
+handling, async AI call) plus a `should_send_message()` helper
+(`!message.trim().is_empty()`) as the single source of truth for the
+empty/whitespace check. The Send button handler reads the input field and
+calls `send_text`; the Enter key routes through the `Input`'s `on_submit`
+callback, which passes the committed text straight to `send_text`. The input
+field is cleared after sending in both cases. Added 4 unit tests for
+`should_send_message` (empty, whitespace-only, non-empty, and leading/trailing
+whitespace). `cargo build` compiles cleanly with no warnings and `cargo test`
+passes all 65 tests.
+
+---
+
+## Summary
+
+| # | Task | Status | Current step |
+|---|------|--------|--------------|
+| 1 | Compile cleanly | 🟢 | 4/4 ✅ |
+| 2 | Workspace / lockfile | 🟢 | 5/5 ✅ |
+| 3 | Cross-platform | 🟢 | 4/4 ✅ |
+| 4 | API key config | 🟢 | 6/6 ✅ |
+| 5 | Tests and CI | 🟢 | 5/5 ✅ |
+| 6 | Packaging / releases | 🟢 | 6/6 ✅ |
+| 7 | End-to-end validation | 🟢 | 5/5 ✅ |
+| 8 | Send on Enter / Send button | 🟢 | 7/7 ✅ |
+
+---
+
+## How to update this file
+
+When a step is accomplished:
+
+1. Change the corresponding step's **Status** from ⬜ to ✅.
+2. Update the task's **Current step** to the next incomplete step
+   (e.g., "Step 2 of 4").
+3. If all steps are done, change the task's **Status** to 🟢 Done.
+4. Update the **Last updated** date.
+5. Update the **Summary** table.

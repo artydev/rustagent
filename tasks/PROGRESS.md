@@ -240,6 +240,34 @@ and `cargo test` passes all 78 tests.
 
 ---
 
+## Task 11 — Place the terminal below the code editor, keeping the chat full screen
+
+**Status:** 🟢 Done
+**Current step:** Complete (5/5)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Position the terminal panel directly below the code editor panel | ✅ |
+| 2 | Keep the chat panel at full height (full screen) | ✅ |
+| 3 | Keep the code editor's current width/behaviour | ✅ |
+| 4 | Ensure the layout remains usable (resizable panels still work) | ✅ |
+| 5 | Verify the project still compiles cleanly with no warnings | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/11-terminal-below-editor.md](tasks/11-terminal-below-editor.md).
+All 5 steps done. In `src/main.rs`, the main layout was restructured from a single
+horizontal `ResizableContainer` with three side-by-side panels (chat, editor,
+terminal) into a horizontal container with two panels: the chat panel (33% width,
+full height) and a right-hand panel (67% width) containing a nested vertical
+`ResizableContainer` that stacks the code editor on top (50% height) and the
+terminal below (50% height). This places the terminal directly below the code
+editor while the chat keeps the full height of the window. Both the outer
+horizontal split and the inner vertical split remain resizable. `cargo build`
+compiles cleanly with no warnings, `cargo clippy -- -D warnings` is clean, and
+`cargo test` passes all 78 tests.
+
+---
+
 ## Summary
 
 | # | Task | Status | Current step |
@@ -254,6 +282,7 @@ and `cargo test` passes all 78 tests.
 | 8 | Send on Enter / Send button | 🟢 | 7/7 ✅ |
 | 9 | Suppress editor left padding | 🟢 | 4/4 ✅ |
 | 10 | Update editor file title based on script | 🟢 | 5/5 ✅ |
+| 11 | Place terminal below editor, chat full screen | 🟢 | 5/5 ✅ |
 
 ---
 

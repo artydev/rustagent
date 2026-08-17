@@ -340,10 +340,7 @@ if __name__ == "__main__":
     // title reflects what was actually written, falling back to `main.<ext>`
     // when no meaningful name can be derived.
     let file_name = use_state(|| {
-        flow::derive_file_name(
-            &editor.read().rope.to_string(),
-            *current_language.read(),
-        )
+        flow::derive_file_name(&editor.read().rope.to_string(), *current_language.read())
     });
 
     // Toolbar actions
@@ -455,8 +452,7 @@ if __name__ == "__main__":
                 editor.write().measure(14., "Jetbrains Mono");
                 // The editor is now empty, so the title falls back to the
                 // conventional `main.<ext>` for the current language.
-                *file_name.write() =
-                    flow::derive_file_name("\n", *current_language.read());
+                *file_name.write() = flow::derive_file_name("\n", *current_language.read());
                 messages.write().push(Message {
                     role: Role::AI,
                     content: "The code editor has been cleared.".to_string(),
@@ -594,8 +590,7 @@ if __name__ == "__main__":
             // matches the editor title (derived from the script content) so
             // the title stays consistent with what is actually executed.
             let temp_dir = std::env::temp_dir();
-            let source_path =
-                temp_dir.join(flow::derive_file_name(&code_content, language));
+            let source_path = temp_dir.join(flow::derive_file_name(&code_content, language));
             if let Err(e) = std::fs::write(&source_path, &code_content) {
                 messages.write().push(Message {
                     role: Role::AI,
@@ -824,12 +819,22 @@ if __name__ == "__main__":
                                     ),
                             ),
                         )
-                        .panel(ResizablePanel::new(PanelSize::percent(33.)).child(
-                            code_editor_panel(editor.into(), file_name.read().clone()),
-                        ))
                         .panel(
-                            ResizablePanel::new(PanelSize::percent(34.))
-                                .child(terminal_panel(terminal_handle.into_writable())),
+                            ResizablePanel::new(PanelSize::percent(67.)).child(
+                                // The editor and terminal are stacked vertically
+                                // (editor on top, terminal below) so the terminal
+                                // sits directly beneath the code editor, while the
+                                // chat panel keeps the full height of the window.
+                                ResizableContainer::new()
+                                    .direction(Direction::Vertical)
+                                    .panel(ResizablePanel::new(PanelSize::percent(50.)).child(
+                                        code_editor_panel(editor.into(), file_name.read().clone()),
+                                    ))
+                                    .panel(
+                                        ResizablePanel::new(PanelSize::percent(50.))
+                                            .child(terminal_panel(terminal_handle.into_writable())),
+                                    ),
+                            ),
                         ),
                 )
                 .child(overlay)

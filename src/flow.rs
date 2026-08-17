@@ -149,9 +149,7 @@ pub fn derive_base_name(code: &str, language: SupportedLanguage) -> Option<Strin
         SupportedLanguage::Python => &["def ", "class "],
         SupportedLanguage::Rust => &["fn ", "struct ", "enum ", "trait "],
         SupportedLanguage::JavaScript => &["function ", "class ", "const ", "let "],
-        SupportedLanguage::TypeScript => {
-            &["function ", "class ", "interface ", "const ", "let "]
-        }
+        SupportedLanguage::TypeScript => &["function ", "class ", "interface ", "const ", "let "],
         SupportedLanguage::Html => &[],
         SupportedLanguage::Css => &[],
         SupportedLanguage::C => &["int ", "void ", "char ", "float ", "double "],
@@ -539,7 +537,10 @@ mod tests {
             Some("greet".to_string())
         );
         assert_eq!(
-            derive_base_name("const add = (a, b) => a + b;\n", SupportedLanguage::JavaScript),
+            derive_base_name(
+                "const add = (a, b) => a + b;\n",
+                SupportedLanguage::JavaScript
+            ),
             Some("add".to_string())
         );
     }
@@ -579,13 +580,19 @@ mod tests {
     /// CSS has no named declarations, so no base name is derived.
     #[test]
     fn derive_base_name_css_none() {
-        assert_eq!(derive_base_name("body { color: red; }\n", SupportedLanguage::Css), None);
+        assert_eq!(
+            derive_base_name("body { color: red; }\n", SupportedLanguage::Css),
+            None
+        );
     }
 
     /// Prose or empty content yields no base name.
     #[test]
     fn derive_base_name_none_for_prose() {
-        assert_eq!(derive_base_name("just some text\n", SupportedLanguage::Python), None);
+        assert_eq!(
+            derive_base_name("just some text\n", SupportedLanguage::Python),
+            None
+        );
         assert_eq!(derive_base_name("\n", SupportedLanguage::Python), None);
     }
 
@@ -593,7 +600,10 @@ mod tests {
     #[test]
     fn derive_file_name_uses_base_name_and_extension() {
         assert_eq!(
-            derive_file_name("def fibonacci(n):\n    return n\n", SupportedLanguage::Python),
+            derive_file_name(
+                "def fibonacci(n):\n    return n\n",
+                SupportedLanguage::Python
+            ),
             "fibonacci.py"
         );
         assert_eq!(
@@ -624,10 +634,7 @@ mod tests {
             derive_file_name("public class Foo {}\n", SupportedLanguage::Java),
             "Main.java"
         );
-        assert_eq!(
-            derive_file_name("\n", SupportedLanguage::Java),
-            "Main.java"
-        );
+        assert_eq!(derive_file_name("\n", SupportedLanguage::Java), "Main.java");
     }
 
     /// The derived file name is consistent with the temp file written before

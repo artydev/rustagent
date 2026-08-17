@@ -16,6 +16,69 @@ pub fn terminal_shell() -> &'static str {
     }
 }
 
+/// Extra command-line arguments passed to the terminal shell so that it
+/// reports its current working directory via OSC 7 on every prompt.
+///
+/// The file-tree sidebar relies on the terminal's reported working directory
+/// to know which folder to display, so the shell must actively emit the OSC 7
+/// sequence (bash does not do this by default).
+///
+/// - Windows: PowerShell is told to emit OSC 7 from its `prompt` function.
+/// - Unix: bash is started with an init file that sets up OSC 7 emission.
+pub fn terminal_shell_args() -> Vec<String> {
+    if cfg!(windows) {
+        // PowerShell: redefine `prompt` to emit OSC 7 with the current path.
+        vec![
+            "-NoExit".to_string(),
+            "-Command".to_string(),
+            "function prompt { $p = $PWD.Path.Replace(' ','%20'); \"`e]7;file://$env:COMPUTERNAME$p`aPS $p> \" }".to_string(),
+        ]
+    } else {
+        // bash: use an init file that configures OSC 7 emission.
+        vec![
+            "--init-file".to_string(),
+            osc7_init_file().display().to_string(),
+        ]
+    }
+}
+
+/// Path to a generated bash init file that makes the shell report its current
+/// working directory via OSC 7 on every prompt.
+///
+/// The file is written to the platform temp directory and is idempotent: it is
+/// regenerated on every call, so it always reflects the current logic. It
+/// sources the user's normal `~/.bashrc` first (when present) so their aliases
+/// and customizations are preserved, then installs a `PROMPT_COMMAND` that
+/// emits the OSC 7 sequence with the URL-encoded current directory.
+fn osc7_init_file() -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join("rustagent");
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("osc7.bash");
+    let content = r#"# rustagent OSC 7 init file.
+# Preserve the user's normal bash customizations.
+if [ -f "$HOME/.bashrc" ]; then
+    . "$HOME/.bashrc"
+fi
+
+# Emit the current working directory via OSC 7 so the app can track it.
+__rustagent_osc7() {
+    local encoded="" c
+    local i
+    for ((i = 0; i < ${#PWD}; i++)); do
+        c="${PWD:i:1}"
+        case "$c" in
+            [a-zA-Z0-9/._~-]) encoded+="$c" ;;
+            *) printf -v c '%%%02X' "'$c"; encoded+="$c" ;;
+        esac
+    done
+    printf '\033]7;file://%s%s\007' "${HOSTNAME:-localhost}" "$encoded"
+}
+PROMPT_COMMAND="__rustagent_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+"#;
+    let _ = std::fs::write(&path, content);
+    path
+}
+
 /// Environment variables to set on the terminal shell.
 ///
 /// `TERM`, `COLORTERM`, and `LANG` are Unix-specific and are only set on

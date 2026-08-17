@@ -268,6 +268,31 @@ compiles cleanly with no warnings, `cargo clippy -- -D warnings` is clean, and
 
 ---
 
+## Task 12 — Add a sidebar file-tree panel that follows the terminal's current directory
+
+**Status:** 🟢 Complete
+**Current step:** Step 5 of 5
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add a left sidebar panel showing folders/directories as a file tree | ✅ |
+| 2 | Make the tree reflect the terminal's current working directory | ✅ |
+| 3 | Update the tree immediately when the terminal path changes | ✅ |
+| 4 | Integrate the sidebar visually with the existing layout/theme | ✅ |
+| 5 | Verify the project still compiles cleanly with no warnings | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/12-sidebar-file-tree.md](tasks/12-sidebar-file-tree.md).
+Implemented a left sidebar file-tree panel. The shell is configured (via OSC 7)
+to report its current working directory on every prompt; `terminal_panel`
+watches for output and updates shared `current_dir` state whenever the reported
+path changes (e.g. after `cd`). `file_tree_panel` renders an expandable tree of
+that directory. New `src/file_tree.rs` module holds the pure directory-scan
+logic with unit tests. `cargo build` is clean with no warnings and all 81 tests
+pass.
+
+---
+
 ## Summary
 
 | # | Task | Status | Current step |
@@ -283,6 +308,7 @@ compiles cleanly with no warnings, `cargo clippy -- -D warnings` is clean, and
 | 9 | Suppress editor left padding | 🟢 | 4/4 ✅ |
 | 10 | Update editor file title based on script | 🟢 | 5/5 ✅ |
 | 11 | Place terminal below editor, chat full screen | 🟢 | 5/5 ✅ |
+| 12 | Add sidebar file-tree following terminal path | 🟢 | 5/5 ✅ |
 
 ---
 

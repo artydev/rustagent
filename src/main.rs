@@ -5,6 +5,7 @@
 
 mod api;
 mod config;
+mod file_tree;
 mod flow;
 mod platform;
 
@@ -227,6 +228,11 @@ fn main() {
 /// The shell and environment are chosen per-platform via the `platform` module.
 fn spawn_terminal() -> Option<TerminalHandle> {
     let mut cmd = CommandBuilder::new(platform::terminal_shell());
+    // Pass shell arguments that make the shell report its current working
+    // directory via OSC 7, so the file-tree sidebar can follow the terminal.
+    for arg in platform::terminal_shell_args() {
+        cmd.arg(arg);
+    }
     for (key, value) in platform::terminal_env() {
         cmd.env(key, value);
     }
@@ -294,6 +300,14 @@ fn app() -> impl IntoElement {
     });
     let input_value = use_state(String::new);
     let terminal_handle = use_state(spawn_terminal);
+
+    // The current working directory reported by the terminal (via OSC 7). This
+    // is shared state: `terminal_panel` updates it whenever the terminal's
+    // path changes, and `file_tree_panel` reads it to render the sidebar tree.
+    let current_dir = use_state(|| std::env::current_dir().unwrap_or_default());
+    // The set of directories the user has expanded in the file-tree sidebar,
+    // keyed by their absolute path.
+    let expanded_dirs = use_state(std::collections::HashSet::<std::path::PathBuf>::new);
 
     // Whether the settings panel is open.
     let show_settings = use_state(|| false);
@@ -805,7 +819,12 @@ if __name__ == "__main__":
                     ResizableContainer::new()
                         .direction(Direction::Horizontal)
                         .panel(
-                            ResizablePanel::new(PanelSize::percent(33.)).child(
+                            ResizablePanel::new(PanelSize::percent(20.)).child(
+                                file_tree_panel(current_dir.into(), expanded_dirs.into()),
+                            ),
+                        )
+                        .panel(
+                            ResizablePanel::new(PanelSize::percent(30.)).child(
                                 rect()
                                     .expanded()
                                     .content(Content::Flex)
@@ -820,7 +839,7 @@ if __name__ == "__main__":
                             ),
                         )
                         .panel(
-                            ResizablePanel::new(PanelSize::percent(67.)).child(
+                            ResizablePanel::new(PanelSize::percent(50.)).child(
                                 // The editor and terminal are stacked vertically
                                 // (editor on top, terminal below) so the terminal
                                 // sits directly beneath the code editor, while the
@@ -831,8 +850,12 @@ if __name__ == "__main__":
                                         code_editor_panel(editor.into(), file_name.read().clone()),
                                     ))
                                     .panel(
-                                        ResizablePanel::new(PanelSize::percent(50.))
-                                            .child(terminal_panel(terminal_handle.into_writable())),
+                                        ResizablePanel::new(PanelSize::percent(50.)).child(
+                                            terminal_panel(
+                                                terminal_handle.into_writable(),
+                                                current_dir.into_writable(),
+                                            ),
+                                        ),
                                     ),
                             ),
                         ),
@@ -953,10 +976,128 @@ where
         )
 }
 
-fn terminal_panel(handle: Writable<Option<TerminalHandle>>) -> impl IntoElement {
+/// The left sidebar file-tree panel.
+///
+/// It shows the folders and files of the terminal's current working directory
+/// as an expandable tree, and follows the directory as it changes (e.g. when
+/// the user runs `cd` in the terminal). The tree is rebuilt from scratch on
+/// every render, so it always reflects the latest directory contents.
+fn file_tree_panel(
+    current_dir: Readable<std::path::PathBuf>,
+    expanded: Writable<std::collections::HashSet<std::path::PathBuf>>,
+) -> impl IntoElement {
+    let dir = current_dir.read().clone();
+    let rows = build_tree_rows(&dir, 0, expanded.clone());
+
+    rect()
+        .expanded()
+        .content(Content::Flex)
+        .background((30, 30, 30))
+        .child(
+            rect()
+                .width(Size::fill())
+                .height(Size::px(32.))
+                .padding(8.)
+                .background((40, 40, 40))
+                .border(Border::new().fill((55, 55, 55)).width(BorderWidth {
+                    top: 0.,
+                    right: 1.,
+                    bottom: 1.,
+                    left: 0.,
+                }))
+                .horizontal()
+                .cross_align(Alignment::Center)
+                .child(
+                    label()
+                        .text(file_tree::display_name(&dir))
+                        .color((245, 245, 245))
+                        .font_size(13.)
+                        .font_weight(FontWeight::BOLD),
+                ),
+        )
+        .child(
+            rect()
+                .expanded()
+                .padding(6.)
+                .child(ScrollView::new().child(rect().width(Size::fill()).children(rows))),
+        )
+}
+
+/// Recursively build the tree rows for a directory.
+///
+/// Each directory is rendered as a row with an expand/collapse toggle; when
+/// expanded, its children are rendered beneath it with extra indentation.
+/// Files are rendered as plain rows. The `expanded` set tracks which
+/// directories are currently open, keyed by absolute path.
+fn build_tree_rows(
+    dir: &std::path::Path,
+    depth: usize,
+    expanded: Writable<std::collections::HashSet<std::path::PathBuf>>,
+) -> Vec<Element> {
+    let mut rows = Vec::new();
+    for entry in file_tree::list_directory(dir) {
+        let indent = depth as f32 * 14.;
+        if entry.is_dir {
+            let is_expanded = expanded.read().contains(&entry.path);
+            let toggle = {
+                let mut expanded = expanded.clone();
+                let path = entry.path.clone();
+                move |_| {
+                    if expanded.read().contains(&path) {
+                        expanded.write().remove(&path);
+                    } else {
+                        expanded.write().insert(path.clone());
+                    }
+                }
+            };
+            rows.push(
+                rect()
+                    .width(Size::fill())
+                    .padding(Gaps::new(2., 4., 2., indent))
+                    .horizontal()
+                    .cross_align(Alignment::Center)
+                    .spacing(4.)
+                    .child(
+                        Button::new()
+                            .background(Color::TRANSPARENT)
+                            .hover_background((45, 45, 55))
+                            .border_fill(Color::TRANSPARENT)
+                            .color((200, 200, 210))
+                            .on_press(toggle)
+                            .child(if is_expanded { "▾" } else { "▸" }),
+                    )
+                    .child(label().text(entry.name.clone()).color((220, 220, 230)))
+                    .into_element(),
+            );
+            if is_expanded {
+                rows.extend(build_tree_rows(&entry.path, depth + 1, expanded.clone()));
+            }
+        } else {
+            rows.push(
+                rect()
+                    .width(Size::fill())
+                    .padding(Gaps::new(2., 4., 2., indent + 14.))
+                    .horizontal()
+                    .cross_align(Alignment::Center)
+                    .spacing(4.)
+                    .child(label().text("•").color((120, 120, 130)))
+                    .child(label().text(entry.name.clone()).color((180, 180, 190)))
+                    .into_element(),
+            );
+        }
+    }
+    rows
+}
+
+fn terminal_panel(
+    handle: Writable<Option<TerminalHandle>>,
+    current_dir: Writable<std::path::PathBuf>,
+) -> impl IntoElement {
     let handle_for_future = handle.clone();
+    let current_dir_for_future = current_dir.clone();
     use_future(move || {
         let mut handle_for_future = handle_for_future.clone();
+        let mut current_dir_for_future = current_dir_for_future.clone();
         async move {
             let terminal_handle = handle_for_future.read().clone();
             let Some(terminal_handle) = terminal_handle else {
@@ -978,6 +1119,17 @@ fn terminal_panel(handle: Writable<Option<TerminalHandle>>) -> impl IntoElement 
                     _ = terminal_handle.clipboard_changed().fuse() => {
                         if let Some(text) = terminal_handle.clipboard_content() {
                             let _ = Clipboard::set(text);
+                        }
+                    }
+                    _ = terminal_handle.output_received().fuse() => {
+                        // The shell reports its working directory via OSC 7 on
+                        // every prompt. Whenever new output arrives, check the
+                        // reported directory and update the sidebar if it
+                        // changed (e.g. after the user runs `cd`).
+                        if let Some(cwd) = terminal_handle.cwd()
+                            && *current_dir_for_future.read() != cwd
+                        {
+                            *current_dir_for_future.write() = cwd;
                         }
                     }
                 }

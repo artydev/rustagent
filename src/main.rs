@@ -407,10 +407,10 @@ if __name__ == "__main__":
     // message text, ignores empty/whitespace-only messages, and dispatches it
     // (clear editor locally, or call the AI).
     let send_text = {
-        let mut messages = messages.clone();
-        let mut input_value = input_value.clone();
-        let mut editor = editor.clone();
-        let mut current_language = current_language.clone();
+        let mut messages = messages;
+        let mut input_value = input_value;
+        let mut editor = editor;
+        let mut current_language = current_language;
         move |user_message: String| {
             if !should_send_message(&user_message) {
                 return;
@@ -550,8 +550,7 @@ if __name__ == "__main__":
 
     // Send button handler: reads the current input field and sends it.
     let send_message = {
-        let input_value = input_value;
-        let mut send_text = send_text.clone();
+        let mut send_text = send_text;
         move |_| {
             let text = input_value.read().clone();
             send_text(text);
@@ -561,7 +560,7 @@ if __name__ == "__main__":
     // Enter key handler: the Input component calls `on_submit` with the
     // committed text when Enter is pressed, so we send it directly.
     let on_submit = {
-        let mut send_text = send_text.clone();
+        let mut send_text = send_text;
         move |text: String| {
             send_text(text);
         }

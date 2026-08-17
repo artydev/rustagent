@@ -186,6 +186,60 @@ passes all 65 tests.
 
 ---
 
+## Task 9 — Suppress the left padding in the code editor panel
+
+**Status:** 🟢 Done
+**Current step:** Complete (4/4)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Remove the left padding around the code editor | ✅ |
+| 2 | Preserve the top, right, and bottom padding (6px) | ✅ |
+| 3 | Keep the change scoped to the code editor panel only | ✅ |
+| 4 | Verify the project still compiles cleanly | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/09-editor-left-padding.md](tasks/09-editor-left-padding.md).
+All 4 steps done. In `src/main.rs`, the `code_editor_panel` function's editor
+wrapper was changed from a uniform `.padding(6.)` to an asymmetric
+`Gaps::new(6., 6., 6., 0.)` (top, right, bottom, left), which suppresses the
+left padding while keeping 6px on the other three sides. `Gaps` is re-exported
+through freya's prelude (via `elements::extensions::*`), so no extra import
+was needed. The argument order was confirmed against the `torin` crate source.
+`cargo check` compiles cleanly with no warnings.
+
+---
+
+## Task 10 — Update the editor file title based on the script written
+
+**Status:** 🟢 Done
+**Current step:** Complete (5/5)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Derive a meaningful file name from the script content when code is inserted | ✅ |
+| 2 | Make the editor title shared state so it updates when code is inserted | ✅ |
+| 3 | Keep the title consistent with the temp file written before execution | ✅ |
+| 4 | Verify the title updates correctly for all supported languages | ✅ |
+| 5 | Verify the project still compiles cleanly with no warnings | ✅ |
+
+**Last updated:** 2026-08-17
+**Notes:** See [tasks/10-editor-title.md](tasks/10-editor-title.md).
+All 5 steps done. Added `flow::derive_base_name` (extracts the first
+function/class/struct name from the script content, or the HTML `<title>` tag
+for HTML) and `flow::derive_file_name` (combines the base name with the
+language extension, falling back to `main.<ext>` when nothing meaningful is
+derived; Java is always `Main.java`). The editor title is now shared state
+(`current_file_name: Arc<RwLock<String>>`) updated whenever code is inserted
+and read by `code_editor_panel`. The temp file written before execution now
+uses the same derived name (`flow::derive_file_name`), keeping the editor title
+consistent with the executed file. Added 12 unit tests covering base-name
+derivation across all languages, fallback behaviour, the Java special case, and
+consistency with the temp file. `cargo build` compiles cleanly with no warnings
+and `cargo test` passes all 78 tests.
+
+---
+
 ## Summary
 
 | # | Task | Status | Current step |
@@ -198,6 +252,8 @@ passes all 65 tests.
 | 6 | Packaging / releases | 🟢 | 6/6 ✅ |
 | 7 | End-to-end validation | 🟢 | 5/5 ✅ |
 | 8 | Send on Enter / Send button | 🟢 | 7/7 ✅ |
+| 9 | Suppress editor left padding | 🟢 | 4/4 ✅ |
+| 10 | Update editor file title based on script | 🟢 | 5/5 ✅ |
 
 ---
 

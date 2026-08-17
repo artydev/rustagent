@@ -64,18 +64,6 @@ impl SupportedLanguage {
         }
     }
 
-    /// The file name shown in the editor header.
-    ///
-    /// Java is special-cased to `Main.java` so the header matches the temp
-    /// file written before execution (the Java compiler requires the public
-    /// class name to match the file name).
-    fn file_name(&self) -> String {
-        if *self == SupportedLanguage::Java {
-            return "Main.java".to_string();
-        }
-        format!("main.{}", self.extension())
-    }
-
     /// Build the tree-sitter language + highlights query for the editor.
     fn editor_language(&self) -> EditorLanguage {
         match self {
@@ -279,7 +267,7 @@ fn code_editor_panel(editor: Writable<CodeEditorData>, file_name: String) -> imp
         .child(
             rect()
                 .expanded()
-                .padding(6.)
+                .padding(Gaps::new(6., 6., 6., 0.))
                 .child(CodeEditor::new(editor, a11y_id).background((20, 20, 20))),
         )
 }
@@ -344,6 +332,18 @@ if __name__ == "__main__":
         editor.parse();
         editor.measure(14., "Jetbrains Mono");
         editor
+    });
+
+    // The file name shown in the editor header. This is shared state so it can
+    // be updated whenever code is inserted (or the editor is cleared) and read
+    // by `code_editor_panel`. It is derived from the script content so the
+    // title reflects what was actually written, falling back to `main.<ext>`
+    // when no meaningful name can be derived.
+    let file_name = use_state(|| {
+        flow::derive_file_name(
+            &editor.read().rope.to_string(),
+            *current_language.read(),
+        )
     });
 
     // Toolbar actions
@@ -411,6 +411,7 @@ if __name__ == "__main__":
         let mut input_value = input_value;
         let mut editor = editor;
         let mut current_language = current_language;
+        let mut file_name = file_name;
         move |user_message: String| {
             if !should_send_message(&user_message) {
                 return;
@@ -452,6 +453,10 @@ if __name__ == "__main__":
                 editor.write().set_selection((0, 0));
                 editor.write().parse();
                 editor.write().measure(14., "Jetbrains Mono");
+                // The editor is now empty, so the title falls back to the
+                // conventional `main.<ext>` for the current language.
+                *file_name.write() =
+                    flow::derive_file_name("\n", *current_language.read());
                 messages.write().push(Message {
                     role: Role::AI,
                     content: "The code editor has been cleared.".to_string(),
@@ -516,6 +521,10 @@ if __name__ == "__main__":
                                         editor.write().set_selection((0, 0));
                                         editor.write().parse();
                                         editor.write().measure(14., "Jetbrains Mono");
+                                        // Update the editor header title to reflect the
+                                        // script that was just written.
+                                        *file_name.write() =
+                                            flow::derive_file_name(&code, language);
                                         // Only show a confirmation in the chat, NOT the code.
                                         // The code goes exclusively to the editor.
                                         flow::insertion_confirmation(language)
@@ -581,9 +590,12 @@ if __name__ == "__main__":
                 return;
             };
 
-            // Write the code to a temp file so it can be run.
+            // Write the code to a temp file so it can be run. The file name
+            // matches the editor title (derived from the script content) so
+            // the title stays consistent with what is actually executed.
             let temp_dir = std::env::temp_dir();
-            let source_path = temp_dir.join(flow::temp_source_file(language));
+            let source_path =
+                temp_dir.join(flow::derive_file_name(&code_content, language));
             if let Err(e) = std::fs::write(&source_path, &code_content) {
                 messages.write().push(Message {
                     role: Role::AI,
@@ -813,7 +825,7 @@ if __name__ == "__main__":
                             ),
                         )
                         .panel(ResizablePanel::new(PanelSize::percent(33.)).child(
-                            code_editor_panel(editor.into(), current_language.read().file_name()),
+                            code_editor_panel(editor.into(), file_name.read().clone()),
                         ))
                         .panel(
                             ResizablePanel::new(PanelSize::percent(34.))
@@ -1267,7 +1279,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // SupportedLanguage::extension() / file_name()
+    // SupportedLanguage::extension() / flow::derive_file_name()
     // ------------------------------------------------------------------
 
     #[test]
@@ -1286,10 +1298,24 @@ mod tests {
 
     #[test]
     fn file_names_use_extension() {
-        assert_eq!(SupportedLanguage::Python.file_name(), "main.py");
-        assert_eq!(SupportedLanguage::Rust.file_name(), "main.rs");
-        assert_eq!(SupportedLanguage::JavaScript.file_name(), "main.js");
-        assert_eq!(SupportedLanguage::Go.file_name(), "main.go");
+        // With no meaningful name derivable from the content, the file name
+        // falls back to the conventional `main.<ext>`.
+        assert_eq!(
+            flow::derive_file_name("\n", SupportedLanguage::Python),
+            "main.py"
+        );
+        assert_eq!(
+            flow::derive_file_name("\n", SupportedLanguage::Rust),
+            "main.rs"
+        );
+        assert_eq!(
+            flow::derive_file_name("\n", SupportedLanguage::JavaScript),
+            "main.js"
+        );
+        assert_eq!(
+            flow::derive_file_name("\n", SupportedLanguage::Go),
+            "main.go"
+        );
     }
 
     /// Java's header label must be `Main.java` so it matches the temp file
@@ -1297,7 +1323,10 @@ mod tests {
     /// to match the file name).
     #[test]
     fn java_file_name_is_capital_main() {
-        assert_eq!(SupportedLanguage::Java.file_name(), "Main.java");
+        assert_eq!(
+            flow::derive_file_name("public class Foo {}\n", SupportedLanguage::Java),
+            "Main.java"
+        );
     }
 
     // ------------------------------------------------------------------

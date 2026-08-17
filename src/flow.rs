@@ -102,6 +102,92 @@ pub fn temp_source_file(language: SupportedLanguage) -> String {
     format!("main.{}", language.extension())
 }
 
+/// Extract the identifier that immediately follows a keyword at the start of a
+/// line, e.g. `fn foo(` → `foo`, `def bar():` → `bar`, `class Baz {` → `Baz`.
+/// Returns `None` when no keyword is found or no identifier follows it.
+fn identifier_after_keyword(line: &str, keywords: &[&str]) -> Option<String> {
+    let trimmed = line.trim_start();
+    for kw in keywords {
+        if let Some(rest) = trimmed.strip_prefix(kw) {
+            let rest = rest.trim_start();
+            let ident: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if !ident.is_empty() {
+                return Some(ident);
+            }
+        }
+    }
+    None
+}
+
+/// Extract the text of an HTML `<title>...</title>` tag, if present.
+fn html_title(code: &str) -> Option<String> {
+    let lower = code.to_lowercase();
+    let start = lower.find("<title>")? + "<title>".len();
+    let end = lower[start..].find("</title>")? + start;
+    let title = code[start..end].trim();
+    if title.is_empty() {
+        None
+    } else {
+        Some(title.to_string())
+    }
+}
+
+/// Derive a meaningful base file name (without extension) from the script
+/// content, based on the first function/class/struct name found. Returns
+/// `None` when no meaningful name can be derived (e.g. prose, or a language
+/// like CSS that has no named declarations).
+pub fn derive_base_name(code: &str, language: SupportedLanguage) -> Option<String> {
+    // HTML has no function/class declarations; use the `<title>` tag instead.
+    if language == SupportedLanguage::Html {
+        return html_title(code);
+    }
+
+    let keywords: &[&str] = match language {
+        SupportedLanguage::Python => &["def ", "class "],
+        SupportedLanguage::Rust => &["fn ", "struct ", "enum ", "trait "],
+        SupportedLanguage::JavaScript => &["function ", "class ", "const ", "let "],
+        SupportedLanguage::TypeScript => {
+            &["function ", "class ", "interface ", "const ", "let "]
+        }
+        SupportedLanguage::Html => &[],
+        SupportedLanguage::Css => &[],
+        SupportedLanguage::C => &["int ", "void ", "char ", "float ", "double "],
+        SupportedLanguage::Cpp => &["int ", "void ", "class ", "char ", "float ", "double "],
+        SupportedLanguage::Java => &["public class ", "class "],
+        SupportedLanguage::Go => &["func "],
+    };
+
+    for line in code.lines() {
+        if let Some(name) = identifier_after_keyword(line, keywords) {
+            return Some(name);
+        }
+    }
+    None
+}
+
+/// The file name shown in the editor header and used for the temp file written
+/// before execution.
+///
+/// This derives a meaningful name from the script content (e.g. a Fibonacci
+/// script becomes `fibonacci.py`) so the editor title reflects what was
+/// written. When no meaningful name can be derived it falls back to the
+/// conventional `main.<ext>` name (see [`temp_source_file`]).
+///
+/// Java is always `Main.java`: the Java compiler requires the public class
+/// name to match the file name, and the conventional public class is `Main`.
+pub fn derive_file_name(code: &str, language: SupportedLanguage) -> String {
+    if language == SupportedLanguage::Java {
+        return "Main.java".to_string();
+    }
+    match derive_base_name(code, language) {
+        Some(base) => format!("{}.{}", base, language.extension()),
+        None => temp_source_file(language),
+    }
+}
+
 /// Human-readable name for a language, used in chat messages.
 pub fn language_name(lang: SupportedLanguage) -> &'static str {
     match lang {
@@ -409,6 +495,155 @@ mod tests {
         assert!(command.contains("Main.java"), "command: {command}");
         // And it must run the class whose name matches that file (Main).
         assert!(command.contains("java Main"), "command: {command}");
+    }
+
+    // ------------------------------------------------------------------
+    // derive_base_name() / derive_file_name() — the editor title
+    // ------------------------------------------------------------------
+
+    /// A Python script with a named function derives a meaningful base name.
+    #[test]
+    fn derive_base_name_python_function() {
+        let code = "def fibonacci(n):\n    return n\n";
+        assert_eq!(
+            derive_base_name(code, SupportedLanguage::Python),
+            Some("fibonacci".to_string())
+        );
+    }
+
+    /// A Python class name is derived too.
+    #[test]
+    fn derive_base_name_python_class() {
+        let code = "class Greeter:\n    pass\n";
+        assert_eq!(
+            derive_base_name(code, SupportedLanguage::Python),
+            Some("Greeter".to_string())
+        );
+    }
+
+    /// Rust `fn` names are derived.
+    #[test]
+    fn derive_base_name_rust_fn() {
+        let code = "fn main() {}\n";
+        assert_eq!(
+            derive_base_name(code, SupportedLanguage::Rust),
+            Some("main".to_string())
+        );
+    }
+
+    /// JavaScript function and const names are derived.
+    #[test]
+    fn derive_base_name_javascript() {
+        assert_eq!(
+            derive_base_name("function greet() {}\n", SupportedLanguage::JavaScript),
+            Some("greet".to_string())
+        );
+        assert_eq!(
+            derive_base_name("const add = (a, b) => a + b;\n", SupportedLanguage::JavaScript),
+            Some("add".to_string())
+        );
+    }
+
+    /// Go `func` names are derived.
+    #[test]
+    fn derive_base_name_go() {
+        assert_eq!(
+            derive_base_name("func main() {}\n", SupportedLanguage::Go),
+            Some("main".to_string())
+        );
+    }
+
+    /// C/C++ `int main` derives `main`.
+    #[test]
+    fn derive_base_name_c_main() {
+        assert_eq!(
+            derive_base_name("int main() { return 0; }\n", SupportedLanguage::C),
+            Some("main".to_string())
+        );
+        assert_eq!(
+            derive_base_name("int main() { return 0; }\n", SupportedLanguage::Cpp),
+            Some("main".to_string())
+        );
+    }
+
+    /// HTML derives its name from the `<title>` tag.
+    #[test]
+    fn derive_base_name_html_title() {
+        let code = "<html><head><title>My Page</title></head></html>\n";
+        assert_eq!(
+            derive_base_name(code, SupportedLanguage::Html),
+            Some("My Page".to_string())
+        );
+    }
+
+    /// CSS has no named declarations, so no base name is derived.
+    #[test]
+    fn derive_base_name_css_none() {
+        assert_eq!(derive_base_name("body { color: red; }\n", SupportedLanguage::Css), None);
+    }
+
+    /// Prose or empty content yields no base name.
+    #[test]
+    fn derive_base_name_none_for_prose() {
+        assert_eq!(derive_base_name("just some text\n", SupportedLanguage::Python), None);
+        assert_eq!(derive_base_name("\n", SupportedLanguage::Python), None);
+    }
+
+    /// `derive_file_name` combines the base name with the language extension.
+    #[test]
+    fn derive_file_name_uses_base_name_and_extension() {
+        assert_eq!(
+            derive_file_name("def fibonacci(n):\n    return n\n", SupportedLanguage::Python),
+            "fibonacci.py"
+        );
+        assert_eq!(
+            derive_file_name("fn main() {}\n", SupportedLanguage::Rust),
+            "main.rs"
+        );
+    }
+
+    /// `derive_file_name` falls back to the conventional `main.<ext>` name
+    /// when nothing meaningful can be derived.
+    #[test]
+    fn derive_file_name_falls_back_to_main() {
+        assert_eq!(
+            derive_file_name("just some text\n", SupportedLanguage::Python),
+            "main.py"
+        );
+        assert_eq!(
+            derive_file_name("body { color: red; }\n", SupportedLanguage::Css),
+            "main.css"
+        );
+    }
+
+    /// Java is always `Main.java` regardless of content, because the public
+    /// class name must match the file name.
+    #[test]
+    fn derive_file_name_java_is_always_main() {
+        assert_eq!(
+            derive_file_name("public class Foo {}\n", SupportedLanguage::Java),
+            "Main.java"
+        );
+        assert_eq!(
+            derive_file_name("\n", SupportedLanguage::Java),
+            "Main.java"
+        );
+    }
+
+    /// The derived file name is consistent with the temp file written before
+    /// execution: when a meaningful name is derived, the temp file uses it;
+    /// otherwise it falls back to the same `main.<ext>` as `temp_source_file`.
+    #[test]
+    fn derive_file_name_is_consistent_with_temp_file() {
+        // Meaningful name → temp file uses the derived name.
+        let code = "def fibonacci(n):\n    return n\n";
+        let derived = derive_file_name(code, SupportedLanguage::Python);
+        assert_eq!(derived, "fibonacci.py");
+
+        // No meaningful name → identical to the conventional temp file.
+        let fallback = derive_file_name("\n", SupportedLanguage::Python);
+        assert_eq!(fallback, temp_source_file(SupportedLanguage::Python));
+        assert_eq!(fallback, "main.py");
     }
 
     // ------------------------------------------------------------------

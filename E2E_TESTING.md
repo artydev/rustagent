@@ -364,6 +364,6 @@ When a case fails, please capture:
 ## Related documentation
 
 - `README.md` — overview, configuration, supported languages, roadmap.
-- `IMPROVEMENTS.md` — the improvement requirements this testing supports.
+- `tasks/PROGRESS.md` — the task progress tracker this testing supports.
 - `CHANGELOG.md` — version history.
 - `src/flow.rs` — the automated unit/integration tests for the core flow.

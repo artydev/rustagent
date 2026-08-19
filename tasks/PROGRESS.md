@@ -291,6 +291,27 @@ that directory. New `src/file_tree.rs` module holds the pure directory-scan
 logic with unit tests. `cargo build` is clean with no warnings and all 81 tests
 pass.
 
+## Task 13 — Refactor theming to use Freya's native theming system
+
+**Status:** 🟢 Done
+**Current step:** Complete (4/4)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Rewrite `src/theme.rs` to build a Freya `Theme` from `theme.json` | ✅ |
+| 2 | Expand `src/theme.json` to all 26 `ColorsSheet` roles | ✅ |
+| 3 | Switch `src/main.rs` to Freya's `use_provide_theme` / `use_theme` hooks | ✅ |
+| 4 | Verify clean build (no warnings) and all tests pass | ✅ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/13-freya-native-theming.md](tasks/13-freya-native-theming.md).
+Replaced the custom `AppTheme` / `AppColors` theming layer with Freya's native
+`Theme` / `ColorsSheet` and `use_provide_theme` / `use_theme` hooks. The color
+palette still lives in an external `theme.json` (now covering all 26
+`ColorsSheet` roles) and is loaded into a Freya `Theme` at startup. No custom
+theming code remains. `cargo build` is clean with no warnings and all 81 tests
+pass.
+
 ---
 
 ## Summary
@@ -309,6 +330,7 @@ pass.
 | 10 | Update editor file title based on script | 🟢 | 5/5 ✅ |
 | 11 | Place terminal below editor, chat full screen | 🟢 | 5/5 ✅ |
 | 12 | Add sidebar file-tree following terminal path | 🟢 | 5/5 ✅ |
+| 13 | Refactor theming to Freya's native system | 🟢 | 4/4 ✅ |
 
 ---
 

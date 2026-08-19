@@ -8,6 +8,7 @@ mod config;
 mod file_tree;
 mod flow;
 mod platform;
+mod theme;
 
 use freya::{clipboard::Clipboard, code_editor::*, prelude::*, terminal::*, text_edit::TextEditor};
 use futures_util::FutureExt;
@@ -243,18 +244,19 @@ fn spawn_terminal() -> Option<TerminalHandle> {
 /// that the chat and terminal panels can read/write the same content.
 fn code_editor_panel(editor: Writable<CodeEditorData>, file_name: String) -> impl IntoElement {
     let a11y_id = use_a11y();
+    let c = use_theme().read().colors.clone();
 
     rect()
         .expanded()
         .content(Content::Flex)
-        .background((30, 30, 30))
+        .background(c.background)
         .child(
             rect()
                 .width(Size::fill())
                 .height(Size::px(32.))
                 .padding(8.)
-                .background((40, 40, 40))
-                .border(Border::new().fill((55, 55, 55)).width(BorderWidth {
+                .background(c.surface_primary)
+                .border(Border::new().fill(c.border).width(BorderWidth {
                     top: 0.,
                     right: 0.,
                     bottom: 1.,
@@ -265,7 +267,7 @@ fn code_editor_panel(editor: Writable<CodeEditorData>, file_name: String) -> imp
                 .child(
                     label()
                         .text(file_name)
-                        .color((245, 245, 245))
+                        .color(c.text_primary)
                         .font_size(13.)
                         .font_weight(FontWeight::BOLD),
                 ),
@@ -274,11 +276,17 @@ fn code_editor_panel(editor: Writable<CodeEditorData>, file_name: String) -> imp
             rect()
                 .expanded()
                 .padding(Gaps::new(6., 6., 6., 0.))
-                .child(CodeEditor::new(editor, a11y_id).background((20, 20, 20))),
+                .child(CodeEditor::new(editor, a11y_id).background(c.surface_secondary)),
         )
 }
 
 fn app() -> impl IntoElement {
+    // Load the external theme (colors) from theme.json and provide it to the
+    // whole component tree. This is the app's "stylesheet": the single source
+    // of truth for the color palette. `c` is a shorthand for the color sheet.
+    let theme = use_provide_theme(theme::load_theme);
+    let c = theme.read().colors.clone();
+
     // Check the API key configuration at startup so the user is informed
     // immediately if it is missing or invalid, rather than failing silently
     // on the first message.
@@ -634,9 +642,9 @@ if __name__ == "__main__":
                 let is_user = msg.role == Role::User;
                 // OBSIDIAN THEME COLORS
                 let bg_color = if is_user {
-                    (45, 55, 70) // Obsidian blue-gray for user messages
+                    c.surface_inverse // Obsidian blue-gray for user messages
                 } else {
-                    (25, 25, 35) // Deep obsidian background for AI messages
+                    c.surface_inverse_secondary // Deep obsidian background for AI messages
                 };
                 let align = if is_user {
                     Alignment::End
@@ -649,9 +657,9 @@ if __name__ == "__main__":
                     TextAlign::Start
                 };
                 let text_color = if is_user {
-                    (220, 220, 230) // Light text for user messages
+                    c.text_inverse // Light text for user messages
                 } else {
-                    (180, 180, 190) // Subtle text for AI messages
+                    c.text_highlight // Subtle text for AI messages
                 };
 
                 rect()
@@ -694,20 +702,20 @@ if __name__ == "__main__":
                 .content(Content::Flex)
                 .child(
                     Input::new(input_value)
-                        .background((65, 65, 65))
-                        .focus_background((75, 75, 75))
+                        .background(c.surface_tertiary)
+                        .focus_background(c.tertiary)
                         .border_fill(Color::TRANSPARENT)
-                        .color((200, 200, 200))
+                        .color(c.text_secondary)
                         .placeholder("Type your message...")
                         .width(Size::flex(1.))
                         .on_submit(on_submit),
                 )
                 .child(
                     Button::new()
-                        .background((65, 65, 65))
-                        .hover_background((75, 75, 75))
+                        .background(c.surface_tertiary)
+                        .hover_background(c.tertiary)
                         .border_fill(Color::TRANSPARENT)
-                        .color((200, 200, 200))
+                        .color(c.text_secondary)
                         .on_press(send_message)
                         .child("Send"),
                 ),
@@ -716,7 +724,7 @@ if __name__ == "__main__":
     let chat_panel = rect()
         .expanded()
         .content(Content::Flex)
-        .background((30, 30, 30))
+        .background(c.background)
         .child(chat_area)
         .child(input_area);
 
@@ -725,8 +733,8 @@ if __name__ == "__main__":
         .width(Size::fill())
         .height(Size::px(44.))
         .padding(8.)
-        .background((40, 40, 40))
-        .border(Border::new().fill((55, 55, 55)).width(BorderWidth {
+        .background(c.surface_primary)
+        .border(Border::new().fill(c.border).width(BorderWidth {
             top: 0.,
             right: 0.,
             bottom: 1.,
@@ -738,17 +746,17 @@ if __name__ == "__main__":
         .child(
             label()
                 .text("Coding Assistant")
-                .color((245, 245, 245))
+                .color(c.text_primary)
                 .font_size(16.)
                 .font_weight(FontWeight::BOLD),
         )
         .child(rect().width(Size::flex(1.)))
         .child(
             Button::new()
-                .background((65, 65, 65))
-                .hover_background((75, 75, 75))
+                .background(c.surface_tertiary)
+                .hover_background(c.tertiary)
                 .border_fill(Color::TRANSPARENT)
-                .color((200, 200, 200))
+                .color(c.text_secondary)
                 .on_press({
                     let mut show_settings = show_settings;
                     move |_| {
@@ -759,29 +767,29 @@ if __name__ == "__main__":
         )
         .child(
             Button::new()
-                .background((65, 65, 65))
-                .hover_background((75, 75, 75))
+                .background(c.surface_tertiary)
+                .hover_background(c.tertiary)
                 .border_fill(Color::TRANSPARENT)
-                .color((200, 200, 200))
+                .color(c.text_secondary)
                 .on_press(clear_chat)
                 .child("Clear Chat"),
         )
         .child(
             Button::new()
-                .background((65, 65, 65))
-                .hover_background((75, 75, 75))
+                .background(c.surface_tertiary)
+                .hover_background(c.tertiary)
                 .border_fill(Color::TRANSPARENT)
-                .color((200, 200, 200))
+                .color(c.text_secondary)
                 .on_press(reset_terminal)
                 .child("Reset Terminal"),
         );
 
     // Execute button for code
     let execute_button = Button::new()
-        .background((65, 65, 65))
-        .hover_background((75, 75, 75))
+        .background(c.surface_tertiary)
+        .hover_background(c.tertiary)
         .border_fill(Color::TRANSPARENT)
-        .color((200, 200, 200))
+        .color(c.text_secondary)
         .on_press(execute_code)
         .child("Execute Code");
 
@@ -809,7 +817,7 @@ if __name__ == "__main__":
 
     rect()
         .expanded()
-        .background((30, 30, 30))
+        .background(c.background)
         .content(Content::Flex)
         .child(toolbar)
         .child(
@@ -890,41 +898,42 @@ where
     H1: Into<EventHandler<Event<PressEventData>>>,
     H2: Into<EventHandler<Event<PressEventData>>>,
 {
+    let c = use_theme().read().colors.clone();
     rect()
         .layer(Layer::Overlay)
         .position(Position::new_absolute().top(0.).left(0.))
         .width(Size::fill())
         .height(Size::fill())
-        .background((0, 0, 0, 180))
+        .background(c.overlay)
         .center()
         .child(
             rect()
                 .width(Size::px(480.))
                 .padding(24.)
-                .background((45, 45, 55))
+                .background(c.surface_primary)
                 .corner_radius(12.)
-                .shadow(Shadow::new().x(0.).y(4.).blur(20.).color((0, 0, 0, 120)))
+                .shadow(Shadow::new().x(0.).y(4.).blur(20.).color(c.shadow))
                 .content(Content::Flex)
                 .spacing(12.)
                 .child(
                     label()
                         .text("Settings")
-                        .color((245, 245, 245))
+                        .color(c.text_primary)
                         .font_size(18.)
                         .font_weight(FontWeight::BOLD),
                 )
                 .child(
                     label()
                         .text("Albert API Key")
-                        .color((200, 200, 210))
+                        .color(c.text_secondary)
                         .font_size(13.),
                 )
                 .child(
                     Input::new(key_input)
-                        .background((30, 30, 40))
-                        .focus_background((40, 40, 50))
+                        .background(c.surface_secondary)
+                        .focus_background(c.surface_tertiary)
                         .border_fill(Color::TRANSPARENT)
-                        .color((220, 220, 230))
+                        .color(c.text_inverse)
                         .placeholder("sk-...")
                         .width(Size::fill()),
                 )
@@ -934,13 +943,13 @@ where
                             "Saved to: {}",
                             config::ApiKeyConfig::config_file_path().display()
                         ))
-                        .color((150, 150, 160))
+                        .color(c.text_placeholder)
                         .font_size(11.),
                 )
                 .child(if !feedback.read().is_empty() {
                     label()
                         .text(feedback.read().clone())
-                        .color((255, 200, 120))
+                        .color(c.warning)
                         .font_size(12.)
                         .into_element()
                 } else {
@@ -956,19 +965,19 @@ where
                         .spacing(8.)
                         .child(
                             Button::new()
-                                .background((65, 65, 75))
-                                .hover_background((75, 75, 85))
+                                .background(c.surface_tertiary)
+                                .hover_background(c.tertiary)
                                 .border_fill(Color::TRANSPARENT)
-                                .color((220, 220, 230))
+                                .color(c.text_inverse)
                                 .on_press(on_save)
                                 .child("Save"),
                         )
                         .child(
                             Button::new()
-                                .background((65, 65, 75))
-                                .hover_background((75, 75, 85))
+                                .background(c.surface_tertiary)
+                                .hover_background(c.tertiary)
                                 .border_fill(Color::TRANSPARENT)
-                                .color((220, 220, 230))
+                                .color(c.text_inverse)
                                 .on_press(on_close)
                                 .child("Close"),
                         ),
@@ -987,19 +996,20 @@ fn file_tree_panel(
     expanded: Writable<std::collections::HashSet<std::path::PathBuf>>,
 ) -> impl IntoElement {
     let dir = current_dir.read().clone();
-    let rows = build_tree_rows(&dir, 0, expanded.clone());
+    let c = use_theme().read().colors.clone();
+    let rows = build_tree_rows(&dir, 0, expanded.clone(), c.clone());
 
     rect()
         .expanded()
         .content(Content::Flex)
-        .background((30, 30, 30))
+        .background(c.background)
         .child(
             rect()
                 .width(Size::fill())
                 .height(Size::px(32.))
                 .padding(8.)
-                .background((40, 40, 40))
-                .border(Border::new().fill((55, 55, 55)).width(BorderWidth {
+                .background(c.surface_primary)
+                .border(Border::new().fill(c.border).width(BorderWidth {
                     top: 0.,
                     right: 1.,
                     bottom: 1.,
@@ -1010,7 +1020,7 @@ fn file_tree_panel(
                 .child(
                     label()
                         .text(file_tree::display_name(&dir))
-                        .color((245, 245, 245))
+                        .color(c.text_primary)
                         .font_size(13.)
                         .font_weight(FontWeight::BOLD),
                 ),
@@ -1033,6 +1043,7 @@ fn build_tree_rows(
     dir: &std::path::Path,
     depth: usize,
     expanded: Writable<std::collections::HashSet<std::path::PathBuf>>,
+    colors: ColorsSheet,
 ) -> Vec<Element> {
     let mut rows = Vec::new();
     for entry in file_tree::list_directory(dir) {
@@ -1060,17 +1071,17 @@ fn build_tree_rows(
                     .child(
                         Button::new()
                             .background(Color::TRANSPARENT)
-                            .hover_background((45, 45, 55))
+                            .hover_background(colors.surface_primary)
                             .border_fill(Color::TRANSPARENT)
-                            .color((200, 200, 210))
+                            .color(colors.text_secondary)
                             .on_press(toggle)
                             .child(if is_expanded { "▾" } else { "▸" }),
                     )
-                    .child(label().text(entry.name.clone()).color((220, 220, 230)))
+                    .child(label().text(entry.name.clone()).color(colors.text_inverse))
                     .into_element(),
             );
             if is_expanded {
-                rows.extend(build_tree_rows(&entry.path, depth + 1, expanded.clone()));
+                rows.extend(build_tree_rows(&entry.path, depth + 1, expanded.clone(), colors.clone()));
             }
         } else {
             rows.push(
@@ -1080,8 +1091,8 @@ fn build_tree_rows(
                     .horizontal()
                     .cross_align(Alignment::Center)
                     .spacing(4.)
-                    .child(label().text("•").color((120, 120, 130)))
-                    .child(label().text(entry.name.clone()).color((180, 180, 190)))
+                    .child(label().text("•").color(colors.text_placeholder))
+                    .child(label().text(entry.name.clone()).color(colors.text_highlight))
                     .into_element(),
             );
         }
@@ -1131,6 +1142,7 @@ fn terminal_panel(
     });
 
     let a11y_id = use_a11y();
+    let c = use_theme().read().colors.clone();
     let focus = use_focus(a11y_id);
     let mut dimensions = use_state(|| (0.0, 0.0));
     let mut click_origin = use_state(|| None::<(usize, usize)>);
@@ -1146,8 +1158,8 @@ fn terminal_panel(
     rect()
         .expanded()
         .center()
-        .background((30, 30, 30))
-        .color((245, 245, 245))
+        .background(c.background)
+        .color(c.text_primary)
         .child(if let Some(handle) = handle.read().clone() {
             rect()
                 .child(
@@ -1261,7 +1273,7 @@ fn terminal_panel(
                         }),
                 )
                 .expanded()
-                .background((10, 10, 10))
+                .background(c.surface_secondary)
                 .padding(6.)
                 .into_element()
         } else {

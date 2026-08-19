@@ -1,6 +1,6 @@
 # Task 12 — Add a sidebar file-tree panel that follows the terminal's current directory
 
-**Status:** 🔴 Not started
+**Status:** 🟢 Done
 
 ## Goal
 
@@ -11,13 +11,13 @@ current working directory as a file tree. The tree must be driven by the
 
 ## Requirements
 
-- [ ] A left sidebar panel is added to the layout, showing folders and
+- [x] A left sidebar panel is added to the layout, showing folders and
       directories as a file tree.
-- [ ] The tree reflects the current working directory indicated by the
+- [x] The tree reflects the current working directory indicated by the
       terminal's path.
-- [ ] The tree updates immediately whenever the path in the terminal changes.
-- [ ] The sidebar is visually integrated with the existing layout and theme.
-- [ ] The project still compiles cleanly with no warnings.
+- [x] The tree updates immediately whenever the path in the terminal changes.
+- [x] The sidebar is visually integrated with the existing layout and theme.
+- [x] The project still compiles cleanly with no warnings.
 
 ## Current behaviour
 
@@ -47,3 +47,13 @@ UI reflects or tracks it.
 - A left sidebar shows the folders/directories of the current directory.
 - Running `cd <dir>` in the terminal updates the sidebar tree immediately.
 - The existing chat, editor, and terminal panels still work as before.
+
+## Notes
+
+All 5 steps done. Implemented a left sidebar file-tree panel. The shell is
+configured (via OSC 7) to report its current working directory on every
+prompt; `terminal_panel` watches for output and updates shared `current_dir`
+state whenever the reported path changes (e.g. after `cd`). `file_tree_panel`
+renders an expandable tree of that directory. New `src/file_tree.rs` module
+holds the pure directory-scan logic with unit tests. `cargo build` is clean
+with no warnings and all 81 tests pass.

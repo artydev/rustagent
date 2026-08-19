@@ -1,0 +1,241 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1960" viewBox="0 0 1200 1960" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2b2d42"/>
+      <stop offset="100%" stop-color="#3a3d5c"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="100%" stop-color="#374151"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1200" height="1960" fill="#f3f4f6"/>
+
+  <!-- Title banner -->
+  <rect x="0" y="0" width="1200" height="90" fill="url(#titleGrad)"/>
+  <text x="600" y="42" text-anchor="middle" font-size="30" font-weight="bold" fill="#ffffff">RustAgent — Task Progress Tracker</text>
+  <text x="600" y="72" text-anchor="middle" font-size="16" fill="#c7d2fe">All 12 tasks complete · 61/61 steps done</text>
+
+  <!-- Table header -->
+  <rect x="40" y="110" width="1120" height="40" fill="url(#headerGrad)"/>
+  <text x="70" y="136" font-size="17" font-weight="bold" fill="#ffffff">#</text>
+  <text x="130" y="136" font-size="17" font-weight="bold" fill="#ffffff">Task</text>
+  <text x="1000" y="136" font-size="17" font-weight="bold" fill="#ffffff">Status</text>
+  <text x="1090" y="136" font-size="17" font-weight="bold" fill="#ffffff">Steps</text>
+
+  <!-- Task rows -->
+  <g font-size="15">
+    <!-- Task 1 -->
+    <rect x="40" y="150" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="172" fill="#1f2937">1</text>
+    <text x="130" y="172" fill="#1f2937" font-weight="bold">Compile cleanly</text>
+    <text x="1000" y="172" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="172" fill="#059669">4/4 ✅</text>
+    <text x="130" y="196" fill="#6b7280" font-size="13">1. Verify `cargo build` succeeds in a standalone checkout</text>
+    <text x="1090" y="196" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="216" fill="#6b7280" font-size="13">2. Confirm `cargo run` launches the application</text>
+    <text x="1090" y="216" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="236" fill="#6b7280" font-size="13">3. Fix any compilation errors from the current dependency set</text>
+    <text x="1090" y="236" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="256" fill="#6b7280" font-size="13">4. Ensure Freya feature set resolves without workspace overrides</text>
+    <text x="1090" y="256" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 2 -->
+    <rect x="40" y="270" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="292" fill="#1f2937">2</text>
+    <text x="130" y="292" fill="#1f2937" font-weight="bold">Workspace / lockfile</text>
+    <text x="1000" y="292" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="292" fill="#059669">5/5 ✅</text>
+    <text x="130" y="316" fill="#6b7280" font-size="13">1. Add a `[workspace]` section to `Cargo.toml`</text>
+    <text x="1090" y="316" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="336" fill="#6b7280" font-size="13">2. Generate and commit a `Cargo.lock` file</text>
+    <text x="1090" y="336" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="356" fill="#6b7280" font-size="13">3. Decide whether `Cargo.lock` should be committed</text>
+    <text x="1090" y="356" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="376" fill="#6b7280" font-size="13">4. Verify reproducible builds across environments</text>
+    <text x="1090" y="376" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="396" fill="#6b7280" font-size="13">5. Review `.gitignore` to ensure `Cargo.lock` is not excluded</text>
+    <text x="1090" y="396" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 3 -->
+    <rect x="40" y="410" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="432" fill="#1f2937">3</text>
+    <text x="130" y="432" fill="#1f2937" font-weight="bold">Cross-platform</text>
+    <text x="1000" y="432" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="432" fill="#059669">4/4 ✅</text>
+    <text x="130" y="456" fill="#6b7280" font-size="13">1. Adapt terminal shell selection (bash/cmd/PowerShell) per platform</text>
+    <text x="1090" y="456" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="476" fill="#6b7280" font-size="13">2. Adapt execution commands (`python3`, `/tmp`, `xdg-open`, etc.) per platform</text>
+    <text x="1090" y="476" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="496" fill="#6b7280" font-size="13">3. Handle platform-specific environment variables (`TERM`, `LANG`, etc.)</text>
+    <text x="1090" y="496" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="516" fill="#6b7280" font-size="13">4. Abstract platform logic behind a `platform` module</text>
+    <text x="1090" y="516" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 4 -->
+    <rect x="40" y="530" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="552" fill="#1f2937">4</text>
+    <text x="130" y="552" fill="#1f2937" font-weight="bold">API key config</text>
+    <text x="1000" y="552" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="552" fill="#059669">6/6 ✅</text>
+    <text x="130" y="576" fill="#6b7280" font-size="13">1. Add a configuration mechanism for the API key (UI/file/env)</text>
+    <text x="1090" y="576" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="596" fill="#6b7280" font-size="13">2. Validate the API key before/at startup</text>
+    <text x="1090" y="596" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="616" fill="#6b7280" font-size="13">3. Provide clear error messages for missing/invalid keys</text>
+    <text x="1090" y="616" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="636" fill="#6b7280" font-size="13">4. Handle API errors (timeouts, rate limits, network) gracefully</text>
+    <text x="1090" y="636" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="656" fill="#6b7280" font-size="13">5. Add retry / progressive integration logic</text>
+    <text x="1090" y="656" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="676" fill="#6b7280" font-size="13">6. Add request timeout handling</text>
+    <text x="1090" y="676" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 5 -->
+    <rect x="40" y="690" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="712" fill="#1f2937">5</text>
+    <text x="130" y="712" fill="#1f2937" font-weight="bold">Tests and CI</text>
+    <text x="1000" y="712" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="712" fill="#059669">5/5 ✅</text>
+    <text x="130" y="736" fill="#6b7280" font-size="13">1. Add unit tests for pure functions (detect, extract, run_command, etc.)</text>
+    <text x="1090" y="736" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="756" fill="#6b7280" font-size="13">2. Add integration tests for chat → editor → terminal flow</text>
+    <text x="1090" y="756" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="776" fill="#6b7280" font-size="13">3. Set up CI pipeline (GitHub Actions) with build/test/clippy/fmt</text>
+    <text x="1090" y="776" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="796" fill="#6b7280" font-size="13">4. Add `#[cfg(test)]` modules or `tests/` directory</text>
+    <text x="1090" y="796" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="816" fill="#6b7280" font-size="13">5. Add local dev command tooling (Makefile / justfile)</text>
+    <text x="1090" y="816" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 6 -->
+    <rect x="40" y="830" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="852" fill="#1f2937">6</text>
+    <text x="130" y="852" fill="#1f2937" font-weight="bold">Packaging / releases</text>
+    <text x="1000" y="852" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="852" fill="#059669">6/6 ✅</text>
+    <text x="130" y="876" fill="#6b7280" font-size="13">1. Configure `[profile.release]` for optimized builds</text>
+    <text x="1090" y="876" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="896" fill="#6b7280" font-size="13">2. Package for Windows (`.msi` / `.exe`)</text>
+    <text x="1090" y="896" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="916" fill="#6b7280" font-size="13">3. Package for macOS (`.dmg` / `.app`)</text>
+    <text x="1090" y="916" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="936" fill="#6b7280" font-size="13">4. Package for Linux (`.deb` / `.rpm` / `.AppImage`)</text>
+    <text x="1090" y="936" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="956" fill="#6b7280" font-size="13">5. Add versioning and changelog management</text>
+    <text x="1090" y="956" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="976" fill="#6b7280" font-size="13">6. Document the release process</text>
+    <text x="1090" y="976" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 7 -->
+    <rect x="40" y="990" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="1012" fill="#1f2937">7</text>
+    <text x="130" y="1012" fill="#1f2937" font-weight="bold">End-to-end validation</text>
+    <text x="1000" y="1012" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="1012" fill="#059669">5/5 ✅</text>
+    <text x="130" y="1036" fill="#6b7280" font-size="13">1. Manual end-to-end testing with a real API key</text>
+    <text x="1090" y="1036" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1056" fill="#6b7280" font-size="13">2. Test all 10 supported languages end-to-end</text>
+    <text x="1090" y="1056" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1076" fill="#6b7280" font-size="13">3. Test edge cases (empty editor, no code, special chars, etc.)</text>
+    <text x="1090" y="1076" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1096" fill="#6b7280" font-size="13">4. Test terminal edge cases (exited, long-running, output)</text>
+    <text x="1090" y="1096" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1116" fill="#6b7280" font-size="13">5. Add automated integration tests (after refactor)</text>
+    <text x="1090" y="1116" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 8 -->
+    <rect x="40" y="1130" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="1152" fill="#1f2937">8</text>
+    <text x="130" y="1152" fill="#1f2937" font-weight="bold">Send on Enter / Send button</text>
+    <text x="1000" y="1152" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="1152" fill="#059669">7/7 ✅</text>
+    <text x="130" y="1176" fill="#6b7280" font-size="13">1. Pressing Enter in the chat input sends the message to the LLM</text>
+    <text x="1090" y="1176" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1196" fill="#6b7280" font-size="13">2. Send button continues to work as before</text>
+    <text x="1090" y="1196" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1216" fill="#6b7280" font-size="13">3. Both triggers share the same send handler / code path</text>
+    <text x="1090" y="1216" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1236" fill="#6b7280" font-size="13">4. Empty/whitespace-only messages are ignored in both cases</text>
+    <text x="1090" y="1236" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1256" fill="#6b7280" font-size="13">5. Input field is cleared after sending in both cases</text>
+    <text x="1090" y="1256" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1276" fill="#6b7280" font-size="13">6. Enter does not interfere with multi-line input / shortcuts</text>
+    <text x="1090" y="1276" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1296" fill="#6b7280" font-size="13">7. Add tests covering the shared send logic</text>
+    <text x="1090" y="1296" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 9 -->
+    <rect x="40" y="1310" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="1332" fill="#1f2937">9</text>
+    <text x="130" y="1332" fill="#1f2937" font-weight="bold">Suppress editor left padding</text>
+    <text x="1000" y="1332" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="1332" fill="#059669">4/4 ✅</text>
+    <text x="130" y="1356" fill="#6b7280" font-size="13">1. Remove the left padding around the code editor</text>
+    <text x="1090" y="1356" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1376" fill="#6b7280" font-size="13">2. Preserve the top, right, and bottom padding (6px)</text>
+    <text x="1090" y="1376" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1396" fill="#6b7280" font-size="13">3. Keep the change scoped to the code editor panel only</text>
+    <text x="1090" y="1396" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1416" fill="#6b7280" font-size="13">4. Verify the project still compiles cleanly</text>
+    <text x="1090" y="1416" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 10 -->
+    <rect x="40" y="1430" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="1452" fill="#1f2937">10</text>
+    <text x="130" y="1452" fill="#1f2937" font-weight="bold">Update editor file title based on script</text>
+    <text x="1000" y="1452" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="1452" fill="#059669">5/5 ✅</text>
+    <text x="130" y="1476" fill="#6b7280" font-size="13">1. Derive a meaningful file name from the script content when code is inserted</text>
+    <text x="1090" y="1476" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1496" fill="#6b7280" font-size="13">2. Make the editor title shared state so it updates when code is inserted</text>
+    <text x="1090" y="1496" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1516" fill="#6b7280" font-size="13">3. Keep the title consistent with the temp file written before execution</text>
+    <text x="1090" y="1516" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1536" fill="#6b7280" font-size="13">4. Verify the title updates correctly for all supported languages</text>
+    <text x="1090" y="1536" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1556" fill="#6b7280" font-size="13">5. Verify the project still compiles cleanly with no warnings</text>
+    <text x="1090" y="1556" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 11 -->
+    <rect x="40" y="1570" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="1592" fill="#1f2937">11</text>
+    <text x="130" y="1592" fill="#1f2937" font-weight="bold">Place terminal below editor, chat full screen</text>
+    <text x="1000" y="1592" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="1592" fill="#059669">5/5 ✅</text>
+    <text x="130" y="1616" fill="#6b7280" font-size="13">1. Position the terminal panel directly below the code editor panel</text>
+    <text x="1090" y="1616" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1636" fill="#6b7280" font-size="13">2. Keep the chat panel at full height (full screen)</text>
+    <text x="1090" y="1636" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1656" fill="#6b7280" font-size="13">3. Keep the code editor's current width/behaviour</text>
+    <text x="1090" y="1656" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1676" fill="#6b7280" font-size="13">4. Ensure the layout remains usable (resizable panels still work)</text>
+    <text x="1090" y="1676" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1696" fill="#6b7280" font-size="13">5. Verify the project still compiles cleanly with no warnings</text>
+    <text x="1090" y="1696" fill="#059669" font-size="13">✅</text>
+
+    <!-- Task 12 -->
+    <rect x="40" y="1710" width="1120" height="34" fill="#eef2ff"/>
+    <text x="70" y="1732" fill="#1f2937">12</text>
+    <text x="130" y="1732" fill="#1f2937" font-weight="bold">Add sidebar file-tree following terminal path</text>
+    <text x="1000" y="1732" fill="#059669" font-weight="bold">🟢 Done</text>
+    <text x="1090" y="1732" fill="#059669">5/5 ✅</text>
+    <text x="130" y="1756" fill="#6b7280" font-size="13">1. Add a left sidebar panel showing folders/directories as a file tree</text>
+    <text x="1090" y="1756" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1776" fill="#6b7280" font-size="13">2. Make the tree reflect the terminal's current working directory</text>
+    <text x="1090" y="1776" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1796" fill="#6b7280" font-size="13">3. Update the tree immediately when the terminal path changes</text>
+    <text x="1090" y="1796" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1816" fill="#6b7280" font-size="13">4. Integrate the sidebar visually with the existing layout/theme</text>
+    <text x="1090" y="1816" fill="#059669" font-size="13">✅</text>
+    <text x="130" y="1836" fill="#6b7280" font-size="13">5. Verify the project still compiles cleanly with no warnings</text>
+    <text x="1090" y="1836" fill="#059669" font-size="13">✅</text>
+  </g>
+
+  <!-- Footer -->
+  <rect x="0" y="1880" width="1200" height="80" fill="#1f2937"/>
+  <text x="600" y="1912" text-anchor="middle" font-size="18" font-weight="bold" fill="#ffffff">🎉 All 12 tasks complete — 61/61 steps done ✅</text>
+  <text x="600" y="1938" text-anchor="middle" font-size="13" fill="#9ca3af">RustAgent · Generated from tasks/PROGRESS.md</text>
+</svg>

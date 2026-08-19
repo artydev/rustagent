@@ -1109,13 +1109,6 @@ fn terminal_panel(
                         let _ = handle_for_future.write().take();
                         break;
                     }
-                    _ = terminal_handle.title_changed().fuse() => {
-                        if let Some(new_title) = terminal_handle.title() {
-                            Platform::get().with_window(None, move |window| {
-                                window.set_title(&new_title);
-                            });
-                        }
-                    }
                     _ = terminal_handle.clipboard_changed().fuse() => {
                         if let Some(text) = terminal_handle.clipboard_content() {
                             let _ = Clipboard::set(text);

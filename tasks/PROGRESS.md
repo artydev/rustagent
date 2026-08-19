@@ -270,8 +270,8 @@ compiles cleanly with no warnings, `cargo clippy -- -D warnings` is clean, and
 
 ## Task 12 — Add a sidebar file-tree panel that follows the terminal's current directory
 
-**Status:** 🟢 Complete
-**Current step:** Step 5 of 5
+**Status:** 🟢 Done
+**Current step:** Complete (5/5)
 
 | Step | Description | Status |
 |------|-------------|--------|

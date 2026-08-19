@@ -314,6 +314,214 @@ pass.
 
 ---
 
+## Task 14 — Remove the stale "unfinished" disclaimer and formalize the release
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Audit the README for stale "unfinished" language | ⬜ |
+| 2 | Rewrite the status banner | ⬜ |
+| 3 | Update the "Ce qui n'est PAS abouti" section | ⬜ |
+| 4 | Update the roadmap checklist | ⬜ |
+| 5 | Tag the first release | ⬜ |
+| 6 | Verify the project still builds and tests pass | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/14-remove-unfinished-disclaimer.md](tasks/14-remove-unfinished-disclaimer.md)
+
+---
+
+## Task 15 — Add a dedicated `tests/` integration test directory
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Identify which tests are integration-style vs unit-style | ⬜ |
+| 2 | Create the `tests/` directory and a first integration test file | ⬜ |
+| 3 | Move the API retry/config/file-tree integration tests | ⬜ |
+| 4 | Ensure the crate exposes a public API for the tests | ⬜ |
+| 5 | Remove the moved tests from the `#[cfg(test)]` modules | ⬜ |
+| 6 | Verify the full suite still passes | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/15-integration-test-directory.md](tasks/15-integration-test-directory.md)
+
+---
+
+## Task 16 — Add automated tests for the GUI layer
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Extract testable state logic out of the UI components | ⬜ |
+| 2 | Add tests for the chat send state logic | ⬜ |
+| 3 | Add tests for the terminal → file-tree directory sync | ⬜ |
+| 4 | Add tests for the editor title update | ⬜ |
+| 5 | Add tests for the settings panel API-key save/load | ⬜ |
+| 6 | Verify the full suite still passes | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/16-gui-layer-tests.md](tasks/16-gui-layer-tests.md)
+
+---
+
+## Task 17 — Harden the file-tree against real-world directory errors
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Handle permission-denied / unreadable directories | ⬜ |
+| 2 | Prevent symlink loops | ⬜ |
+| 3 | Add a max-depth / entry limit | ⬜ |
+| 4 | Make scanning async / debounced | ⬜ |
+| 5 | Add lazy loading for large trees | ⬜ |
+| 6 | Verify the full suite still passes | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/17-file-tree-hardening.md](tasks/17-file-tree-hardening.md)
+
+---
+
+## Task 18 — Make the AI model and endpoint configurable
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add model/endpoint fields to the config struct | ⬜ |
+| 2 | Read model/endpoint from environment variables | ⬜ |
+| 3 | Read model/endpoint from the config file | ⬜ |
+| 4 | Add model/endpoint fields to the settings panel | ⬜ |
+| 5 | Replace the hardcoded constants in `src/main.rs` | ⬜ |
+| 6 | Verify the full suite still passes | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/18-configurable-model-endpoint.md](tasks/18-configurable-model-endpoint.md)
+
+---
+
+## Task 19 — Add streaming responses to the AI chat
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Investigate the current response handling | ⬜ |
+| 2 | Add a streaming API call | ⬜ |
+| 3 | Wire streaming into the chat panel | ⬜ |
+| 4 | Keep code extraction working with streaming | ⬜ |
+| 5 | Handle stream errors and cancellation | ⬜ |
+| 6 | Verify the full suite still passes | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/19-streaming-responses.md](tasks/19-streaming-responses.md)
+
+---
+
+## Task 20 — Add multi-turn conversation context to the AI chat
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add a conversation-history data structure | ⬜ |
+| 2 | Cap the history length | ⬜ |
+| 3 | Send history with each request | ⬜ |
+| 4 | Clear history on "clear chat" | ⬜ |
+| 5 | Keep code extraction scoped to the latest response | ⬜ |
+| 6 | Verify the full suite still passes | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/20-conversation-context.md](tasks/20-conversation-context.md)
+
+---
+
+## Task 21 — Add CLI metadata, version flag, and app branding
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add a `--version` CLI flag | ⬜ |
+| 2 | Add a `--help` flag | ⬜ |
+| 3 | Show the version in the window title | ⬜ |
+| 4 | Add an app icon asset | ⬜ |
+| 5 | Verify the release build still works | ⬜ |
+| 6 | Verify the full suite still passes | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/21-cli-metadata-branding.md](tasks/21-cli-metadata-branding.md)
+
+---
+
+## Task 22 — Security and robustness hardening
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Sanitize the API key before saving | ⬜ |
+| 2 | Debounce / guard the Enter-key send | ⬜ |
+| 3 | Confirm before resetting the terminal | ⬜ |
+| 4 | Validate the API key format at startup | ⬜ |
+| 5 | Sanitize the editor content before writing temp files | ⬜ |
+| 6 | Verify the full suite still passes | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/22-security-robustness.md](tasks/22-security-robustness.md)
+
+---
+
+## Task 23 — Documentation and developer experience
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 5
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add a `CONTRIBUTING.md` | ⬜ |
+| 2 | Add doc comments to public functions | ⬜ |
+| 3 | Add `cargo doc` to CI | ⬜ |
+| 4 | Add a developer setup section to the README | ⬜ |
+| 5 | Verify the full suite still passes | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/23-documentation-dx.md](tasks/23-documentation-dx.md)
+
+---
+
+## Task 24 — Cross-platform runtime verification (Windows & macOS)
+
+**Status:** 🔴 Not started
+**Current step:** Step 1 of 6
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Add a CI matrix for Windows and macOS | ⬜ |
+| 2 | Verify shell selection per platform | ⬜ |
+| 3 | Verify execution commands per platform | ⬜ |
+| 4 | Verify the terminal launches on Windows/macOS | ⬜ |
+| 5 | Document platform-specific limitations | ⬜ |
+| 6 | Verify the full suite still passes on all platforms | ⬜ |
+
+**Last updated:** 2026-08-19
+**Notes:** See [tasks/24-cross-platform-verification.md](tasks/24-cross-platform-verification.md)
+
+---
+
 ## Summary
 
 | # | Task | Status | Current step |
@@ -331,6 +539,17 @@ pass.
 | 11 | Place terminal below editor, chat full screen | 🟢 | 5/5 ✅ |
 | 12 | Add sidebar file-tree following terminal path | 🟢 | 5/5 ✅ |
 | 13 | Refactor theming to Freya's native system | 🟢 | 4/4 ✅ |
+| 14 | Remove stale "unfinished" disclaimer & formalize release | 🔴 | 0/6 |
+| 15 | Add dedicated `tests/` integration directory | 🔴 | 0/6 |
+| 16 | Add automated tests for the GUI layer | 🔴 | 0/6 |
+| 17 | Harden the file-tree against directory errors | 🔴 | 0/6 |
+| 18 | Make the AI model and endpoint configurable | 🔴 | 0/6 |
+| 19 | Add streaming responses to the AI chat | 🔴 | 0/6 |
+| 20 | Add multi-turn conversation context | 🔴 | 0/6 |
+| 21 | Add CLI metadata, version flag, and app branding | 🔴 | 0/6 |
+| 22 | Security and robustness hardening | 🔴 | 0/6 |
+| 23 | Documentation and developer experience | 🔴 | 0/5 |
+| 24 | Cross-platform runtime verification (Windows & macOS) | 🔴 | 0/6 |
 
 ---
 

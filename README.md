@@ -22,9 +22,7 @@ L'idée est simple : vous demandez à l'assistant (en langage naturel) d'écrire
 du code, il génère le code et le place directement dans l'éditeur, puis vous
 pouvez l'exécuter dans le terminal intégré en un seul clic.
 
-
-[<img width="1134" height="664" alt="image" src="https://github.com/user-attachments/assets/5fc6846f-541b-4344-98fc-3ce28ed4b165" />](https://github.com/artydev/rustagent/blob/main/README.md)
-
+<img width="1292" height="701" alt="image" src="https://github.com/user-attachments/assets/8084ab30-cc48-4ba3-9f7d-904a774517b0" />
 
 ### Fonctionnalités prévues
 
